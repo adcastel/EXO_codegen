@@ -1,3 +1,0 @@
-n, False
-alpha, False
-x, True, n, n

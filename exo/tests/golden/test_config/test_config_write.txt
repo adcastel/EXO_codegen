@@ -1,4 +1,0 @@
-def foo():
-    tmp: f32 @ DRAM
-    tmp = 0.0
-    Config.tmp = tmp

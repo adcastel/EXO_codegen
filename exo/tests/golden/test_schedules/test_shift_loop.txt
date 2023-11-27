@@ -1,3 +1,0 @@
-def foo(n: size, x: f32[n] @ DRAM):
-    for i in seq(1, 1 + n):
-        x[-1 + i] = 0.0

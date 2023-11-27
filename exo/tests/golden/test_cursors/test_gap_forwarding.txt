@@ -1,8 +1,0 @@
-def p():
-    x: f32 @ DRAM
-    pass
-    if True:
-        x = 1.0
-        pass
-        x = 2.0
-        pass

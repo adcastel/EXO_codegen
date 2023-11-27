@@ -1,3 +1,0 @@
-def bar(y: f32 @ DRAM):
-    x: f32 @ DRAM
-    x = 0.0 + y

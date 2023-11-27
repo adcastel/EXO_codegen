@@ -1,6 +1,0 @@
-def foo(x: R @ DRAM, a: index, b: index):
-    if a == b:
-        x += 1.0
-        x += 2.0
-    else:
-        x += 3.0

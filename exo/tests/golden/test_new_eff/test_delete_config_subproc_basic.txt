@@ -1,3 +1,0 @@
-def foo(N: size, x: R[N] @ DRAM):
-    for i in seq(0, N):
-        x[i] = x[i] + 1.0
