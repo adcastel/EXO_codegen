@@ -1,3 +1,6 @@
 [submodule "exo"]
 	path = exo
 	url = https://github.com/adcastel/exo
+[submodule "blis"]
+	path = blis
+	url = https://github.com/flame/blis
