@@ -4,3 +4,6 @@
 [submodule "blis"]
 	path = blis
 	url = https://github.com/flame/blis
+[submodule "EXO_ukr_generator"]
+	path = EXO_ukr_generator
+	url = https://github.com/adcastel/EXO_ukr_generator.git
