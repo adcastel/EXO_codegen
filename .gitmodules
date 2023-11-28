@@ -7,3 +7,6 @@
 [submodule "EXO_ukr_generator"]
 	path = EXO_ukr_generator
 	url = https://github.com/adcastel/EXO_ukr_generator.git
+[submodule "driver_uk_blis"]
+	path = driver_uk_blis
+	url = https://github.com/adcastel/driver_uk_blis
