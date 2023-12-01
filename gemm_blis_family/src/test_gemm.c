@@ -213,13 +213,12 @@ int main(int argc, char *argv[]) {
   printf(" |  [*] Tmin         :  %s%-5.2f%s                                                              \n", COLOR_BOLDWHITE, tmin, COLOR_RESET);
   printf(" ------------------------------------------------------------------------------------------\n");
 
-
-  printf("\n"); 
-  printf(" ==========================================================================================\n");
-  printf(" |                           %sDRIVER FOR THE EVALUATION OF GEMM%s                            |\n", COLOR_BOLDYELLOW, COLOR_RESET);
-  printf(" ==========================================================================================\n");
-  printf(" |  %sOrder  Trans      M       N      K     MC      NC     KC%s   |    %sTime      GFLOPS%s      |\n", COLOR_BOLDWHITE, COLOR_RESET, COLOR_BOLDWHITE, COLOR_RESET );
-  printf(" ------------------------------------------------------------------------------------------\n");
+  printf("\n");
+  printf(" ===========================================================================================================\n");
+  printf(" |                                   %sDRIVER FOR THE EVALUATION OF GEMM%s                                     |\n", COLOR_BOLDYELLOW, COLOR_RESET);
+  printf(" ===========================================================================================================\n");
+  printf(" |  %sOrder  Trans      M       N      K     MC      NC     KC%s   |    %sTime      GFLOPS      Error%s  |   %sPASS%s  |\n", COLOR_BOLDWHITE, COLOR_RESET, COLOR_BOLDWHITE, COLOR_RESET, COLOR_BOLDWHITE, COLOR_RESET);
+  printf(" -----------------------------------------------------------------------------------------------------------\n");
 
 
   for (unsigned int cnn_i = 0; cnn_i < cnn_num; cnn_i++) {
@@ -395,10 +394,19 @@ int main(int argc, char *argv[]) {
           #ifdef BLIS
 	  mc = 0; nc = 0; kc = 0;
           #endif
-	  printf(" |   %c%c%c    %c%c     %6zu %6zu %6zu %6zu %6zu %6zu   |  %8.2e %10.2e     |", 
-		 orderA, orderB, orderC, transA, transB, m, n, k, mc, nc, kc, time, GFLOPS );
-	  
+	  printf(" |   %c%c%c    %c%c     %6zu %6zu %6zu %6zu %6zu %6zu   |  %8.2e %10.2e %10.2e |", 
+			  		 orderA, orderB, orderC, transA, transB, m, n, k, mc, nc, kc, time, GFLOPS, error );
 	  printf("\n");
+	  
+	  if ( test=='T' ) {
+		  if ( error<errorthd )   
+			  printf("%s    OK   %s|", COLOR_BOLDGREEN, COLOR_RESET);   
+		  else {
+			  printf("%s  ERROR  %s|", COLOR_BOLDRED, COLOR_RESET);   
+		  }
+	  } else
+		  printf("%s    -    %s|", COLOR_RED, COLOR_RESET); 
+	  
 	  if (cnn_enable)
 	    fprintf(fd_csv, "%d;%zu;%zu;%zu;%.2e\n", testConf->cnn[cnn_i].layer, m, n, k, GFLOPS);
 	  //else

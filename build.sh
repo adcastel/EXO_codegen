@@ -23,11 +23,11 @@ if ! hash python3; then
     return 1
 fi
 
-ver=$(python3 -V 2>&1 | sed 's/.* \([0-9]\).\([0-9]\).*/\1\2/')
-if [ "$ver" -lt "39" ]; then
-    echo "This script requires python 3.9 or greater"
-    return 1
-fi
+#ver=$(python3 -V 2>&1 | sed 's/.* \([0-9]\).\([0-9]\).*/\1\2/')
+#if [ "$ver" -lt "39" ]; then
+#    echo "This script requires python 3.9 or greater"
+#    return 1
+#fi
 echo "[*] python3 OK"
 
 if ! hash pip3; then
@@ -49,7 +49,7 @@ cd exo
 python3 -m pip install -U setuptools wheel pytest attr
 python3 -m pip install -r requirements.txt
 python3 -m build
-pip3 install dist/*.whl
+pip3 install dist/*.whl --force-reinstall
 cd ..
 
 echo "###################################"

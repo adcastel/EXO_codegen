@@ -116,6 +116,12 @@ extern "C" {
 #define BLIS_DISABLE_SYSTEM
 #endif
 
+#if 1
+#define BLIS_ENABLE_TLS
+#else
+#define BLIS_DISABLE_TLS
+#endif
+
 #if 0
 #define BLIS_ENABLE_OPENMP
 #if 0
@@ -489,7 +495,10 @@ extern "C" {
 // doesn't support __thread, as __GNUC__ is not quite unique to GCC.
 // But the possibility of someone using such non-main-stream compiler
 // for building BLIS is low.
-#if defined(__GNUC__) || defined(__clang__) || defined(__ICC) || defined(__IBMC__)
+#if defined(BLIS_ENABLE_TLS) && ( defined(__GNUC__)  || \
+                                  defined(__clang__) || \
+                                  defined(__ICC)     || \
+                                  defined(__IBMC__) )
   #define BLIS_THREAD_LOCAL __thread
 #else
   #define BLIS_THREAD_LOCAL
@@ -611,6 +620,14 @@ extern "C" {
   // No additional definitions needed.
 #else
   // Default behavior is disabled.
+#endif
+
+
+// -- MEMORY SUBSYSTEM PROPERTIES ----------------------------------------------
+
+// Size of a cache line (in bytes).
+#ifndef BLIS_CACHE_LINE_SIZE
+#define BLIS_CACHE_LINE_SIZE 64
 #endif
 
 
@@ -973,14 +990,51 @@ typedef uint32_t objbits_t;  // object information bit field
 
 // -- Complex types --
 
-#ifdef BLIS_ENABLE_C99_COMPLEX
+#if defined(__cplusplus) && defined(BLIS_ENABLE_STD_COMPLEX)
+
+	} //extern "C"
+
+#include <complex> // skipped
+
+	// Typedef official C++ complex types to BLIS complex type names.
+
+	// This cpp guard provides a temporary hack to allow libflame
+	// interoperability with BLIS.
+	#ifndef _DEFINED_SCOMPLEX
+	#define _DEFINED_SCOMPLEX
+	typedef std::complex<float> scomplex;
+	#endif
+
+	// This cpp guard provides a temporary hack to allow libflame
+	// interoperability with BLIS.
+	#ifndef _DEFINED_DCOMPLEX
+	#define _DEFINED_DCOMPLEX
+	typedef std::complex<double> dcomplex;
+	#endif
+
+	extern "C"
+	{
+
+#elif defined(BLIS_ENABLE_C99_COMPLEX)
 
 	#if __STDC_VERSION__ >= 199901L
 #include <complex.h> // skipped
 
-		// Typedef official complex types to BLIS complex type names.
-		typedef  float complex scomplex;
+		// Typedef official C99 complex types to BLIS complex type names.
+
+		// This cpp guard provides a temporary hack to allow libflame
+		// interoperability with BLIS.
+		#ifndef _DEFINED_SCOMPLEX
+		#define _DEFINED_SCOMPLEX
+		typedef float complex scomplex;
+		#endif
+
+		// This cpp guard provides a temporary hack to allow libflame
+		// interoperability with BLIS.
+		#ifndef _DEFINED_DCOMPLEX
+		#define _DEFINED_DCOMPLEX
 		typedef double complex dcomplex;
+		#endif
 	#else
 		#error "Configuration requested C99 complex types, but C99 does not appear to be supported."
 	#endif
@@ -1790,12 +1844,16 @@ typedef enum
 	BLIS_ARCH_A64FX,
 
 	// ARM-NEON (4 pipes x 128-bit vectors)
+	BLIS_ARCH_ALTRAMAX,
+	BLIS_ARCH_ALTRA,
 	BLIS_ARCH_FIRESTORM,
 
 	// ARM (2 pipes x 128-bit vectors)
 	BLIS_ARCH_THUNDERX2,
 	BLIS_ARCH_CORTEXA57,
 	BLIS_ARCH_CORTEXA53,
+
+	// ARM 32-bit (vintage)
 	BLIS_ARCH_CORTEXA15,
 	BLIS_ARCH_CORTEXA9,
 
@@ -1804,6 +1862,15 @@ typedef enum
 	BLIS_ARCH_POWER9,
 	BLIS_ARCH_POWER7,
 	BLIS_ARCH_BGQ,
+
+	// RISC-V
+	BLIS_ARCH_RV32I,
+	BLIS_ARCH_RV64I,
+	BLIS_ARCH_RV32IV,
+	BLIS_ARCH_RV64IV,
+
+	// SiFive
+	BLIS_ARCH_SIFIVE_X280,
 
 	// Generic architecture/configuration
 	BLIS_ARCH_GENERIC,
@@ -2124,7 +2191,7 @@ int bli_pthread_switch_off
 
 #endif // BLIS_PTHREAD_H
 // end bli_pthread.h
-#line 986 "./frame/include//bli_type_defs.h"
+#line 1036 "./frame/include//bli_type_defs.h"
 
 
 // -- Pool block type --
@@ -3333,215 +3400,87 @@ GENTFUNCSCAL( dcomplex, double,   z, d, blasname, blisname )
 
 // -- Basic one-operand macro --
 
-// -- (no auxiliary arguments) --
-
-#define INSERT_GENTFUNC_BASIC0( tfuncname ) \
+#define INSERT_GENTFUNC_BASIC( ... ) \
 \
-GENTFUNC( float,    s, tfuncname ) \
-GENTFUNC( double,   d, tfuncname ) \
-GENTFUNC( scomplex, c, tfuncname ) \
-GENTFUNC( dcomplex, z, tfuncname )
-
-// -- (one auxiliary argument) --
-
-#define INSERT_GENTFUNC_BASIC( tfuncname, varname ) \
-\
-GENTFUNC( float,    s, tfuncname, varname ) \
-GENTFUNC( double,   d, tfuncname, varname ) \
-GENTFUNC( scomplex, c, tfuncname, varname ) \
-GENTFUNC( dcomplex, z, tfuncname, varname )
-
-// -- (two auxiliary arguments) --
-
-#define INSERT_GENTFUNC_BASIC2( tfuncname, varname1, varname2 ) \
-\
-GENTFUNC( float,    s, tfuncname, varname1, varname2 ) \
-GENTFUNC( double,   d, tfuncname, varname1, varname2 ) \
-GENTFUNC( scomplex, c, tfuncname, varname1, varname2 ) \
-GENTFUNC( dcomplex, z, tfuncname, varname1, varname2 )
-
-// -- (three auxiliary arguments) --
-
-#define INSERT_GENTFUNC_BASIC3( tfuncname, varname1, varname2, varname3 ) \
-\
-GENTFUNC( float,    s, tfuncname, varname1, varname2, varname3 ) \
-GENTFUNC( double,   d, tfuncname, varname1, varname2, varname3 ) \
-GENTFUNC( scomplex, c, tfuncname, varname1, varname2, varname3 ) \
-GENTFUNC( dcomplex, z, tfuncname, varname1, varname2, varname3 )
-
-// -- (four auxiliary arguments) --
-
-#define INSERT_GENTFUNC_BASIC4( tfuncname, varname1, varname2, varname3, varname4 ) \
-\
-GENTFUNC( float,    s, tfuncname, varname1, varname2, varname3, varname4 ) \
-GENTFUNC( double,   d, tfuncname, varname1, varname2, varname3, varname4 ) \
-GENTFUNC( scomplex, c, tfuncname, varname1, varname2, varname3, varname4 ) \
-GENTFUNC( dcomplex, z, tfuncname, varname1, varname2, varname3, varname4 )
+GENTFUNC( float,    s, __VA_ARGS__ ) \
+GENTFUNC( double,   d, __VA_ARGS__ ) \
+GENTFUNC( scomplex, c, __VA_ARGS__ ) \
+GENTFUNC( dcomplex, z, __VA_ARGS__ )
 
 
 
 // -- Basic one-operand with real projection --
 
-// -- (no auxiliary arguments) --
-
-#define INSERT_GENTFUNCR_BASIC0( tfuncname ) \
+#define INSERT_GENTFUNCR_BASIC( ... ) \
 \
-GENTFUNCR( float,    float,  s, s, tfuncname ) \
-GENTFUNCR( double,   double, d, d, tfuncname ) \
-GENTFUNCR( scomplex, float,  c, s, tfuncname ) \
-GENTFUNCR( dcomplex, double, z, d, tfuncname )
-
-// -- (one auxiliary argument) --
-
-#define INSERT_GENTFUNCR_BASIC( tfuncname, varname ) \
-\
-GENTFUNCR( float,    float,  s, s, tfuncname, varname ) \
-GENTFUNCR( double,   double, d, d, tfuncname, varname ) \
-GENTFUNCR( scomplex, float,  c, s, tfuncname, varname ) \
-GENTFUNCR( dcomplex, double, z, d, tfuncname, varname )
-
-// -- (two auxiliary arguments) --
-
-#define INSERT_GENTFUNCR_BASIC2( tfuncname, varname1, varname2 ) \
-\
-GENTFUNCR( float,    float,  s, s, tfuncname, varname1, varname2 ) \
-GENTFUNCR( double,   double, d, d, tfuncname, varname1, varname2 ) \
-GENTFUNCR( scomplex, float,  c, s, tfuncname, varname1, varname2 ) \
-GENTFUNCR( dcomplex, double, z, d, tfuncname, varname1, varname2 )
-
-// -- (three auxiliary arguments) --
-
-#define INSERT_GENTFUNCR_BASIC3( tfuncname, varname1, varname2, varname3  ) \
-\
-GENTFUNCR( float,    float,  s, s, tfuncname, varname1, varname2, varname3 ) \
-GENTFUNCR( double,   double, d, d, tfuncname, varname1, varname2, varname3 ) \
-GENTFUNCR( scomplex, float,  c, s, tfuncname, varname1, varname2, varname3 ) \
-GENTFUNCR( dcomplex, double, z, d, tfuncname, varname1, varname2, varname3 )
-
-// -- (four auxiliary arguments) --
-
-#define INSERT_GENTFUNCR_BASIC4( tfuncname, varname1, varname2, varname3, varname4  ) \
-\
-GENTFUNCR( float,    float,  s, s, tfuncname, varname1, varname2, varname3, varname4 ) \
-GENTFUNCR( double,   double, d, d, tfuncname, varname1, varname2, varname3, varname4 ) \
-GENTFUNCR( scomplex, float,  c, s, tfuncname, varname1, varname2, varname3, varname4 ) \
-GENTFUNCR( dcomplex, double, z, d, tfuncname, varname1, varname2, varname3, varname4 )
+GENTFUNCR( float,    float,  s, s, __VA_ARGS__ ) \
+GENTFUNCR( double,   double, d, d, __VA_ARGS__ ) \
+GENTFUNCR( scomplex, float,  c, s, __VA_ARGS__ ) \
+GENTFUNCR( dcomplex, double, z, d, __VA_ARGS__ )
 
 
 
 // -- Basic one-operand macro with real domain only --
 
-// -- (no auxiliary arguments) --
-
-#define INSERT_GENTFUNCRO_BASIC0( tfuncname ) \
+#define INSERT_GENTFUNCRO_BASIC( ... ) \
 \
-GENTFUNCRO( float,  s, tfuncname ) \
-GENTFUNCRO( double, d, tfuncname ) \
+GENTFUNCRO( float,  s, __VA_ARGS__ ) \
+GENTFUNCRO( double, d, __VA_ARGS__ )
 
-// -- (one auxiliary argument) --
+// -- Basic one-operand macro with complex domain only --
 
-#define INSERT_GENTFUNCRO_BASIC( tfuncname, varname ) \
+#define INSERT_GENTFUNCCO_BASIC( ... ) \
 \
-GENTFUNCRO( float,  s, tfuncname, varname ) \
-GENTFUNCRO( double, d, tfuncname, varname ) \
+GENTFUNCCO( scomplex, c, __VA_ARGS__ ) \
+GENTFUNCCO( dcomplex, z, __VA_ARGS__ )
 
+// -- Basic one-operand macro with real domain only and complex projection --
 
+#define INSERT_GENTFUNCRO( ... ) \
+\
+GENTFUNCRO( float,  scomplex, s, c, __VA_ARGS__ ) \
+GENTFUNCRO( double, dcomplex, d, z, __VA_ARGS__ )
 
 // -- Basic one-operand macro with complex domain only and real projection --
 
-// -- (no auxiliary arguments) --
-
-#define INSERT_GENTFUNCCO_BASIC0( tfuncname ) \
+#define INSERT_GENTFUNCCO( ... ) \
 \
-GENTFUNCCO( scomplex, float,  c, s, tfuncname ) \
-GENTFUNCCO( dcomplex, double, z, d, tfuncname )
-
-// -- (one auxiliary argument) --
-
-#define INSERT_GENTFUNCCO_BASIC( tfuncname, varname ) \
-\
-GENTFUNCCO( scomplex, float,  c, s, tfuncname, varname ) \
-GENTFUNCCO( dcomplex, double, z, d, tfuncname, varname )
-
-// -- (two auxiliary arguments) --
-
-#define INSERT_GENTFUNCCO_BASIC2( tfuncname, varname1, varname2 ) \
-\
-GENTFUNCCO( scomplex, float,  c, s, tfuncname, varname1, varname2 ) \
-GENTFUNCCO( dcomplex, double, z, d, tfuncname, varname1, varname2 )
-
-// -- (three auxiliary arguments) --
-
-#define INSERT_GENTFUNCCO_BASIC3( tfuncname, varname1, varname2, varname3 ) \
-\
-GENTFUNCCO( scomplex, float,  c, s, tfuncname, varname1, varname2, varname3 ) \
-GENTFUNCCO( dcomplex, double, z, d, tfuncname, varname1, varname2, varname3 )
-
-// -- (four auxiliary arguments) --
-
-#define INSERT_GENTFUNCCO_BASIC4( tfuncname, varname1, varname2, varname3, varname4 ) \
-\
-GENTFUNCCO( scomplex, float,  c, s, tfuncname, varname1, varname2, varname3, varname4 ) \
-GENTFUNCCO( dcomplex, double, z, d, tfuncname, varname1, varname2, varname3, varname4 )
+GENTFUNCCO( scomplex, float,  c, s, __VA_ARGS__ ) \
+GENTFUNCCO( dcomplex, double, z, d, __VA_ARGS__ )
 
 
 
 // -- Basic one-operand macro with integer instance --
 
-// -- (no auxiliary arguments) --
-
-#define INSERT_GENTFUNC_BASIC0_I( tfuncname ) \
+#define INSERT_GENTFUNC_BASIC_I( ... ) \
 \
-GENTFUNC( float,    s, tfuncname ) \
-GENTFUNC( double,   d, tfuncname ) \
-GENTFUNC( scomplex, c, tfuncname ) \
-GENTFUNC( dcomplex, z, tfuncname ) \
-GENTFUNC( gint_t,   i, tfuncname )
-
-// -- (one auxiliary argument) --
-
-#define INSERT_GENTFUNC_BASIC_I( tfuncname, varname ) \
-\
-GENTFUNC( float,    s, tfuncname, varname ) \
-GENTFUNC( double,   d, tfuncname, varname ) \
-GENTFUNC( scomplex, c, tfuncname, varname ) \
-GENTFUNC( dcomplex, z, tfuncname, varname ) \
-GENTFUNC( gint_t,   i, tfuncname, varname )
+GENTFUNC( float,    s, __VA_ARGS__ ) \
+GENTFUNC( double,   d, __VA_ARGS__ ) \
+GENTFUNC( scomplex, c, __VA_ARGS__ ) \
+GENTFUNC( dcomplex, z, __VA_ARGS__ ) \
+GENTFUNC( gint_t,   i, __VA_ARGS__ )
 
 
 
 // -- Basic one-operand with integer projection --
 
-// -- (no auxiliary arguments) --
-
-#define INSERT_GENTFUNCI_BASIC0( tfuncname ) \
+#define INSERT_GENTFUNCI_BASIC( ... ) \
 \
-GENTFUNCI( float,    gint_t, s, i, tfuncname ) \
-GENTFUNCI( double,   gint_t, d, i, tfuncname ) \
-GENTFUNCI( scomplex, gint_t, c, i, tfuncname ) \
-GENTFUNCI( dcomplex, gint_t, z, i, tfuncname )
-
-// -- (one auxiliary argument) --
-
-#define INSERT_GENTFUNCI_BASIC( tfuncname, varname ) \
-\
-GENTFUNCI( float,    gint_t, s, i, tfuncname, varname ) \
-GENTFUNCI( double,   gint_t, d, i, tfuncname, varname ) \
-GENTFUNCI( scomplex, gint_t, c, i, tfuncname, varname ) \
-GENTFUNCI( dcomplex, gint_t, z, i, tfuncname, varname )
+GENTFUNCI( float,    gint_t, s, i, __VA_ARGS__ ) \
+GENTFUNCI( double,   gint_t, d, i, __VA_ARGS__ ) \
+GENTFUNCI( scomplex, gint_t, c, i, __VA_ARGS__ ) \
+GENTFUNCI( dcomplex, gint_t, z, i, __VA_ARGS__ )
 
 
 
 // -- Basic one-operand with real and integer projections --
 
-// -- (no auxiliary arguments) --
-
-#define INSERT_GENTFUNCRI_BASIC0( tfuncname ) \
+#define INSERT_GENTFUNCRI_BASIC( ... ) \
 \
-GENTFUNCRI( float,    float,  gint_t, s, s, i, tfuncname ) \
-GENTFUNCRI( double,   double, gint_t, d, d, i, tfuncname ) \
-GENTFUNCRI( scomplex, float,  gint_t, c, s, i, tfuncname ) \
-GENTFUNCRI( dcomplex, double, gint_t, z, d, i, tfuncname )
+GENTFUNCRI( float,    float,  gint_t, s, s, i, __VA_ARGS__ ) \
+GENTFUNCRI( double,   double, gint_t, d, d, i, __VA_ARGS__ ) \
+GENTFUNCRI( scomplex, float,  gint_t, c, s, i, __VA_ARGS__ ) \
+GENTFUNCRI( dcomplex, double, gint_t, z, d, i, __VA_ARGS__ )
 
 
 
@@ -3551,254 +3490,127 @@ GENTFUNCRI( dcomplex, double, gint_t, z, d, i, tfuncname )
 
 // -- Basic two-operand macro --
 
-// -- (no auxiliary arguments) --
-
-#define INSERT_GENTFUNC2_BASIC0( tfuncname ) \
+#define INSERT_GENTFUNC2_BASIC( ... ) \
 \
-GENTFUNC2( float,    float,    s, s, tfuncname ) \
-GENTFUNC2( double,   double,   d, d, tfuncname ) \
-GENTFUNC2( scomplex, scomplex, c, c, tfuncname ) \
-GENTFUNC2( dcomplex, dcomplex, z, z, tfuncname )
-
-// -- (one auxiliary argument) --
-
-#define INSERT_GENTFUNC2_BASIC( tfuncname, varname ) \
-\
-GENTFUNC2( float,    float,    s, s, tfuncname, varname ) \
-GENTFUNC2( double,   double,   d, d, tfuncname, varname ) \
-GENTFUNC2( scomplex, scomplex, c, c, tfuncname, varname ) \
-GENTFUNC2( dcomplex, dcomplex, z, z, tfuncname, varname )
+GENTFUNC2( float,    float,    s, s, __VA_ARGS__ ) \
+GENTFUNC2( double,   double,   d, d, __VA_ARGS__ ) \
+GENTFUNC2( scomplex, scomplex, c, c, __VA_ARGS__ ) \
+GENTFUNC2( dcomplex, dcomplex, z, z, __VA_ARGS__ )
 
 
 
 // -- Mixed domain two-operand macro --
 
-// -- (no auxiliary arguments) --
-
-#define INSERT_GENTFUNC2_MIX_D0( tfuncname ) \
+#define INSERT_GENTFUNC2_MIX_D( ... ) \
 \
-GENTFUNC2( float,    scomplex, s, c, tfuncname ) \
-GENTFUNC2( scomplex, float,    c, s, tfuncname ) \
+GENTFUNC2( float,    scomplex, s, c, __VA_ARGS__ ) \
+GENTFUNC2( scomplex, float,    c, s, __VA_ARGS__ ) \
 \
-GENTFUNC2( double,   dcomplex, d, z, tfuncname ) \
-GENTFUNC2( dcomplex, double,   z, d, tfuncname )
-
-// -- (one auxiliary argument) --
-
-#define INSERT_GENTFUNC2_MIX_D( tfuncname, varname ) \
-\
-GENTFUNC2( float,    scomplex, s, c, tfuncname, varname ) \
-GENTFUNC2( scomplex, float,    c, s, tfuncname, varname ) \
-\
-GENTFUNC2( double,   dcomplex, d, z, tfuncname, varname ) \
-GENTFUNC2( dcomplex, double,   z, d, tfuncname, varname )
+GENTFUNC2( double,   dcomplex, d, z, __VA_ARGS__ ) \
+GENTFUNC2( dcomplex, double,   z, d, __VA_ARGS__ )
 
 
 
 // -- Mixed precision two-operand macro --
 
-// -- (no auxiliary arguments) --
-
-#define INSERT_GENTFUNC2_MIX_P0( tfuncname ) \
+#define INSERT_GENTFUNC2_MIX_P( ... ) \
 \
-GENTFUNC2( float,    double,   s, d, tfuncname ) \
-GENTFUNC2( float,    dcomplex, s, z, tfuncname ) \
+GENTFUNC2( float,    double,   s, d, __VA_ARGS__ ) \
+GENTFUNC2( float,    dcomplex, s, z, __VA_ARGS__ ) \
 \
-GENTFUNC2( double,   float,    d, s, tfuncname ) \
-GENTFUNC2( double,   scomplex, d, c, tfuncname ) \
+GENTFUNC2( double,   float,    d, s, __VA_ARGS__ ) \
+GENTFUNC2( double,   scomplex, d, c, __VA_ARGS__ ) \
 \
-GENTFUNC2( scomplex, double,   c, d, tfuncname ) \
-GENTFUNC2( scomplex, dcomplex, c, z, tfuncname ) \
+GENTFUNC2( scomplex, double,   c, d, __VA_ARGS__ ) \
+GENTFUNC2( scomplex, dcomplex, c, z, __VA_ARGS__ ) \
 \
-GENTFUNC2( dcomplex, float,    z, s, tfuncname ) \
-GENTFUNC2( dcomplex, scomplex, z, c, tfuncname ) \
-
-// -- (one auxiliary argument) --
-
-#define INSERT_GENTFUNC2_MIX_P( tfuncname, varname ) \
-\
-GENTFUNC2( float,    double,   s, d, tfuncname, varname ) \
-GENTFUNC2( float,    dcomplex, s, z, tfuncname, varname ) \
-\
-GENTFUNC2( double,   float,    d, s, tfuncname, varname ) \
-GENTFUNC2( double,   scomplex, d, c, tfuncname, varname ) \
-\
-GENTFUNC2( scomplex, double,   c, d, tfuncname, varname ) \
-GENTFUNC2( scomplex, dcomplex, c, z, tfuncname, varname ) \
-\
-GENTFUNC2( dcomplex, float,    z, s, tfuncname, varname ) \
-GENTFUNC2( dcomplex, scomplex, z, c, tfuncname, varname ) \
+GENTFUNC2( dcomplex, float,    z, s, __VA_ARGS__ ) \
+GENTFUNC2( dcomplex, scomplex, z, c, __VA_ARGS__ )
 
 
 
 // -- Mixed domain/precision (all) two-operand macro --
 
-// -- (no auxiliary arguments) --
-
-#define INSERT_GENTFUNC2_MIXDP0( tfuncname ) \
+#define INSERT_GENTFUNC2_MIX_DP( ... ) \
 \
-GENTFUNC2( float,    double,   s, d, tfuncname ) \
-GENTFUNC2( float,    scomplex, s, c, tfuncname ) \
-GENTFUNC2( float,    dcomplex, s, z, tfuncname ) \
+GENTFUNC2( float,    double,   s, d, __VA_ARGS__ ) \
+GENTFUNC2( float,    scomplex, s, c, __VA_ARGS__ ) \
+GENTFUNC2( float,    dcomplex, s, z, __VA_ARGS__ ) \
 \
-GENTFUNC2( double,   float,    d, s, tfuncname ) \
-GENTFUNC2( double,   scomplex, d, c, tfuncname ) \
-GENTFUNC2( double,   dcomplex, d, z, tfuncname ) \
+GENTFUNC2( double,   float,    d, s, __VA_ARGS__ ) \
+GENTFUNC2( double,   scomplex, d, c, __VA_ARGS__ ) \
+GENTFUNC2( double,   dcomplex, d, z, __VA_ARGS__ ) \
 \
-GENTFUNC2( scomplex, float,    c, s, tfuncname ) \
-GENTFUNC2( scomplex, double,   c, d, tfuncname ) \
-GENTFUNC2( scomplex, dcomplex, c, z, tfuncname ) \
+GENTFUNC2( scomplex, float,    c, s, __VA_ARGS__ ) \
+GENTFUNC2( scomplex, double,   c, d, __VA_ARGS__ ) \
+GENTFUNC2( scomplex, dcomplex, c, z, __VA_ARGS__ ) \
 \
-GENTFUNC2( dcomplex, float,    z, s, tfuncname ) \
-GENTFUNC2( dcomplex, double,   z, d, tfuncname ) \
-GENTFUNC2( dcomplex, scomplex, z, c, tfuncname )
-
-
-// -- (one auxiliary argument) --
-
-#define INSERT_GENTFUNC2_MIX_DP( tfuncname, varname ) \
-\
-GENTFUNC2( float,    double,   s, d, tfuncname, varname ) \
-GENTFUNC2( float,    scomplex, s, c, tfuncname, varname ) \
-GENTFUNC2( float,    dcomplex, s, z, tfuncname, varname ) \
-\
-GENTFUNC2( double,   float,    d, s, tfuncname, varname ) \
-GENTFUNC2( double,   scomplex, d, c, tfuncname, varname ) \
-GENTFUNC2( double,   dcomplex, d, z, tfuncname, varname ) \
-\
-GENTFUNC2( scomplex, float,    c, s, tfuncname, varname ) \
-GENTFUNC2( scomplex, double,   c, d, tfuncname, varname ) \
-GENTFUNC2( scomplex, dcomplex, c, z, tfuncname, varname ) \
-\
-GENTFUNC2( dcomplex, float,    z, s, tfuncname, varname ) \
-GENTFUNC2( dcomplex, double,   z, d, tfuncname, varname ) \
-GENTFUNC2( dcomplex, scomplex, z, c, tfuncname, varname )
+GENTFUNC2( dcomplex, float,    z, s, __VA_ARGS__ ) \
+GENTFUNC2( dcomplex, double,   z, d, __VA_ARGS__ ) \
+GENTFUNC2( dcomplex, scomplex, z, c, __VA_ARGS__ )
 
 
 
 // -- Basic two-operand with real projection of second operand --
 
-// -- (no auxiliary arguments) --
-
-#define INSERT_GENTFUNC2R_BASIC0( tfuncname ) \
+#define INSERT_GENTFUNC2R_BASIC( ... ) \
 \
-GENTFUNC2R( float,    float,    float,    s, s, s, tfuncname ) \
-GENTFUNC2R( double,   double,   double,   d, d, d, tfuncname ) \
-GENTFUNC2R( scomplex, scomplex, float,    c, c, s, tfuncname ) \
-GENTFUNC2R( dcomplex, dcomplex, double,   z, z, d, tfuncname )
-
-// -- (one auxiliary argument) --
-
-#define INSERT_GENTFUNC2R_BASIC( tfuncname, varname ) \
-\
-GENTFUNC2R( float,    float,    float,    s, s, s, tfuncname, varname ) \
-GENTFUNC2R( double,   double,   double,   d, d, d, tfuncname, varname ) \
-GENTFUNC2R( scomplex, scomplex, float,    c, c, s, tfuncname, varname ) \
-GENTFUNC2R( dcomplex, dcomplex, double,   z, z, d, tfuncname, varname )
+GENTFUNC2R( float,    float,    float,    s, s, s, __VA_ARGS__ ) \
+GENTFUNC2R( double,   double,   double,   d, d, d, __VA_ARGS__ ) \
+GENTFUNC2R( scomplex, scomplex, float,    c, c, s, __VA_ARGS__ ) \
+GENTFUNC2R( dcomplex, dcomplex, double,   z, z, d, __VA_ARGS__ )
 
 
 
 // -- Mixed domain two-operand with real projection of second operand --
 
-// -- (no auxiliary arguments) --
-
-#define INSERT_GENTFUNC2R_MIX_D0( tfuncname ) \
+#define INSERT_GENTFUNC2R_MIX_D( ... ) \
 \
-GENTFUNC2R( float,    scomplex, float,    s, c, s, tfuncname ) \
-GENTFUNC2R( scomplex, float,    float,    c, s, s, tfuncname ) \
+GENTFUNC2R( float,    scomplex, float,    s, c, s, __VA_ARGS__ ) \
+GENTFUNC2R( scomplex, float,    float,    c, s, s, __VA_ARGS__ ) \
 \
-GENTFUNC2R( double,   dcomplex, double,   d, z, d, tfuncname ) \
-GENTFUNC2R( dcomplex, double,   double,   z, d, d, tfuncname )
-
-// -- (one auxiliary argument) --
-
-#define INSERT_GENTFUNC2R_MIX_D( tfuncname, varname ) \
-\
-GENTFUNC2R( float,    scomplex, float,    s, c, s, tfuncname, varname ) \
-GENTFUNC2R( scomplex, float,    float,    c, s, s, tfuncname, varname ) \
-\
-GENTFUNC2R( double,   dcomplex, double,   d, z, d, tfuncname, varname ) \
-GENTFUNC2R( dcomplex, double,   double,   z, d, d, tfuncname, varname )
+GENTFUNC2R( double,   dcomplex, double,   d, z, d, __VA_ARGS__ ) \
+GENTFUNC2R( dcomplex, double,   double,   z, d, d, __VA_ARGS__ )
 
 
 
 // -- Mixed precision two-operand with real projection of second operand --
 
-// -- (no auxiliary arguments) --
-
-#define INSERT_GENTFUNC2R_MIX_P0( tfuncname ) \
+#define INSERT_GENTFUNC2R_MIX_P( ... ) \
 \
-GENTFUNC2R( float,    double,   double,   s, d, d, tfuncname ) \
-GENTFUNC2R( float,    dcomplex, double,   s, z, d, tfuncname ) \
+GENTFUNC2R( float,    double,   double,   s, d, d, __VA_ARGS__ ) \
+GENTFUNC2R( float,    dcomplex, double,   s, z, d, __VA_ARGS__ ) \
 \
-GENTFUNC2R( double,   float,    float,    d, s, s, tfuncname ) \
-GENTFUNC2R( double,   scomplex, float,    d, c, s, tfuncname ) \
+GENTFUNC2R( double,   float,    float,    d, s, s, __VA_ARGS__ ) \
+GENTFUNC2R( double,   scomplex, float,    d, c, s, __VA_ARGS__ ) \
 \
-GENTFUNC2R( scomplex, double,   double,   c, d, d, tfuncname ) \
-GENTFUNC2R( scomplex, dcomplex, double,   c, z, d, tfuncname ) \
+GENTFUNC2R( scomplex, double,   double,   c, d, d, __VA_ARGS__ ) \
+GENTFUNC2R( scomplex, dcomplex, double,   c, z, d, __VA_ARGS__ ) \
 \
-GENTFUNC2R( dcomplex, float,    float,    z, s, s, tfuncname ) \
-GENTFUNC2R( dcomplex, scomplex, float,    z, c, s, tfuncname )
-
-// -- (one auxiliary argument) --
-
-#define INSERT_GENTFUNC2R_MIX_P( tfuncname, varname ) \
-\
-GENTFUNC2R( float,    double,   double,   s, d, d, tfuncname, varname ) \
-GENTFUNC2R( float,    dcomplex, double,   s, z, d, tfuncname, varname ) \
-\
-GENTFUNC2R( double,   float,    float,    d, s, s, tfuncname, varname ) \
-GENTFUNC2R( double,   scomplex, float,    d, c, s, tfuncname, varname ) \
-\
-GENTFUNC2R( scomplex, double,   double,   c, d, d, tfuncname, varname ) \
-GENTFUNC2R( scomplex, dcomplex, double,   c, z, d, tfuncname, varname ) \
-\
-GENTFUNC2R( dcomplex, float,    float,    z, s, s, tfuncname, varname ) \
-GENTFUNC2R( dcomplex, scomplex, float,    z, c, s, tfuncname, varname )
+GENTFUNC2R( dcomplex, float,    float,    z, s, s, __VA_ARGS__ ) \
+GENTFUNC2R( dcomplex, scomplex, float,    z, c, s, __VA_ARGS__ )
 
 
 
 // -- Mixed domain/precision (all) two-operand macro with real projection of second operand --
 
-// -- (no auxiliary arguments) --
-
-#define INSERT_GENTFUNC2R_MIXDP0( tfuncname ) \
+#define INSERT_GENTFUNC2R_MIX_DP( ... ) \
 \
-GENTFUNC2R( float,    double,   double,   s, d, d, tfuncname ) \
-GENTFUNC2R( float,    scomplex, float,    s, c, s, tfuncname ) \
-GENTFUNC2R( float,    dcomplex, double,   s, z, d, tfuncname ) \
+GENTFUNC2R( float,    double,   double,   s, d, d, __VA_ARGS__ ) \
+GENTFUNC2R( float,    scomplex, float,    s, c, s, __VA_ARGS__ ) \
+GENTFUNC2R( float,    dcomplex, double,   s, z, d, __VA_ARGS__ ) \
 \
-GENTFUNC2R( double,   float,    float,    d, s, s, tfuncname ) \
-GENTFUNC2R( double,   scomplex, float,    d, c, s, tfuncname ) \
-GENTFUNC2R( double,   dcomplex, double,   d, z, d, tfuncname ) \
+GENTFUNC2R( double,   float,    float,    d, s, s, __VA_ARGS__ ) \
+GENTFUNC2R( double,   scomplex, float,    d, c, s, __VA_ARGS__ ) \
+GENTFUNC2R( double,   dcomplex, double,   d, z, d, __VA_ARGS__ ) \
 \
-GENTFUNC2R( scomplex, float,    float,    c, s, s, tfuncname ) \
-GENTFUNC2R( scomplex, double,   double,   c, d, d, tfuncname ) \
-GENTFUNC2R( scomplex, dcomplex, double,   c, z, d, tfuncname ) \
+GENTFUNC2R( scomplex, float,    float,    c, s, s, __VA_ARGS__ ) \
+GENTFUNC2R( scomplex, double,   double,   c, d, d, __VA_ARGS__ ) \
+GENTFUNC2R( scomplex, dcomplex, double,   c, z, d, __VA_ARGS__ ) \
 \
-GENTFUNC2R( dcomplex, float,    float,    z, s, s, tfuncname ) \
-GENTFUNC2R( dcomplex, double,   double,   z, d, d, tfuncname ) \
-GENTFUNC2R( dcomplex, scomplex, float,    z, c, s, tfuncname ) \
-
-// -- (one auxiliary argument) --
-
-#define INSERT_GENTFUNC2R_MIX_DP( tfuncname, varname ) \
-\
-GENTFUNC2R( float,    double,   double,   s, d, d, tfuncname, varname ) \
-GENTFUNC2R( float,    scomplex, float,    s, c, s, tfuncname, varname ) \
-GENTFUNC2R( float,    dcomplex, double,   s, z, d, tfuncname, varname ) \
-\
-GENTFUNC2R( double,   float,    float,    d, s, s, tfuncname, varname ) \
-GENTFUNC2R( double,   scomplex, float,    d, c, s, tfuncname, varname ) \
-GENTFUNC2R( double,   dcomplex, double,   d, z, d, tfuncname, varname ) \
-\
-GENTFUNC2R( scomplex, float,    float,    c, s, s, tfuncname, varname ) \
-GENTFUNC2R( scomplex, double,   double,   c, d, d, tfuncname, varname ) \
-GENTFUNC2R( scomplex, dcomplex, double,   c, z, d, tfuncname, varname ) \
-\
-GENTFUNC2R( dcomplex, float,    float,    z, s, s, tfuncname, varname ) \
-GENTFUNC2R( dcomplex, double,   double,   z, d, d, tfuncname, varname ) \
-GENTFUNC2R( dcomplex, scomplex, float,    z, c, s, tfuncname, varname ) \
+GENTFUNC2R( dcomplex, float,    float,    z, s, s, __VA_ARGS__ ) \
+GENTFUNC2R( dcomplex, double,   double,   z, d, d, __VA_ARGS__ ) \
+GENTFUNC2R( dcomplex, scomplex, float,    z, c, s, __VA_ARGS__ )
 
 
 
@@ -3808,625 +3620,213 @@ GENTFUNC2R( dcomplex, scomplex, float,    z, c, s, tfuncname, varname ) \
 
 // -- Basic three-operand macro --
 
-// -- (no auxiliary arguments) --
-
-#define INSERT_GENTFUNC3_BASIC0( tfuncname ) \
+#define INSERT_GENTFUNC3_BASIC( ... ) \
 \
-GENTFUNC3( float,    float,    float,    s, s, s, tfuncname ) \
-GENTFUNC3( double,   double,   double,   d, d, d, tfuncname ) \
-GENTFUNC3( scomplex, scomplex, scomplex, c, c, c, tfuncname ) \
-GENTFUNC3( dcomplex, dcomplex, dcomplex, z, z, z, tfuncname )
-
-// -- (one auxiliary argument) --
-
-#define INSERT_GENTFUNC3_BASIC( tfuncname, varname ) \
-\
-GENTFUNC3( float,    float,    float,    s, s, s, tfuncname, varname ) \
-GENTFUNC3( double,   double,   double,   d, d, d, tfuncname, varname ) \
-GENTFUNC3( scomplex, scomplex, scomplex, c, c, c, tfuncname, varname ) \
-GENTFUNC3( dcomplex, dcomplex, dcomplex, z, z, z, tfuncname, varname )
-
-// -- (two auxiliary arguments) --
-
-#define INSERT_GENTFUNC3_BASIC2( tfuncname, varname1, varname2 ) \
-\
-GENTFUNC3( float,    float,    float,    s, s, s, tfuncname, varname1, varname2 ) \
-GENTFUNC3( double,   double,   double,   d, d, d, tfuncname, varname1, varname2 ) \
-GENTFUNC3( scomplex, scomplex, scomplex, c, c, c, tfuncname, varname1, varname2 ) \
-GENTFUNC3( dcomplex, dcomplex, dcomplex, z, z, z, tfuncname, varname1, varname2 )
+GENTFUNC3( float,    float,    float,    s, s, s, __VA_ARGS__ ) \
+GENTFUNC3( double,   double,   double,   d, d, d, __VA_ARGS__ ) \
+GENTFUNC3( scomplex, scomplex, scomplex, c, c, c, __VA_ARGS__ ) \
+GENTFUNC3( dcomplex, dcomplex, dcomplex, z, z, z, __VA_ARGS__ )
 
 
 
 // -- Mixed domain three-operand macro --
 
-// -- (no auxiliary arguments) --
-
-#define INSERT_GENTFUNC3_MIX_D0( tfuncname ) \
+#define INSERT_GENTFUNC3_MIX_D( ... ) \
 \
-GENTFUNC3( float,    float,    scomplex, s, s, c, tfuncname ) \
-GENTFUNC3( float,    scomplex, float,    s, c, s, tfuncname ) \
-GENTFUNC3( float,    scomplex, scomplex, s, c, c, tfuncname ) \
+GENTFUNC3( float,    float,    scomplex, s, s, c, __VA_ARGS__ ) \
+GENTFUNC3( float,    scomplex, float,    s, c, s, __VA_ARGS__ ) \
+GENTFUNC3( float,    scomplex, scomplex, s, c, c, __VA_ARGS__ ) \
 \
-GENTFUNC3( double,   double,   dcomplex, d, d, z, tfuncname ) \
-GENTFUNC3( double,   dcomplex, double,   d, z, d, tfuncname ) \
-GENTFUNC3( double,   dcomplex, dcomplex, d, z, z, tfuncname ) \
+GENTFUNC3( double,   double,   dcomplex, d, d, z, __VA_ARGS__ ) \
+GENTFUNC3( double,   dcomplex, double,   d, z, d, __VA_ARGS__ ) \
+GENTFUNC3( double,   dcomplex, dcomplex, d, z, z, __VA_ARGS__ ) \
 \
-GENTFUNC3( scomplex, float,    float,    c, s, s, tfuncname ) \
-GENTFUNC3( scomplex, float,    scomplex, c, s, c, tfuncname ) \
-GENTFUNC3( scomplex, scomplex, float,    c, c, s, tfuncname ) \
+GENTFUNC3( scomplex, float,    float,    c, s, s, __VA_ARGS__ ) \
+GENTFUNC3( scomplex, float,    scomplex, c, s, c, __VA_ARGS__ ) \
+GENTFUNC3( scomplex, scomplex, float,    c, c, s, __VA_ARGS__ ) \
 \
-GENTFUNC3( dcomplex, double,   double,   z, d, d, tfuncname ) \
-GENTFUNC3( dcomplex, double,   dcomplex, z, d, z, tfuncname ) \
-GENTFUNC3( dcomplex, dcomplex, double,   z, z, d, tfuncname )
-
-// -- (one auxiliary argument) --
-
-#define INSERT_GENTFUNC3_MIX_D( tfuncname, varname ) \
-\
-GENTFUNC3( float,    float,    scomplex, s, s, c, tfuncname, varname ) \
-GENTFUNC3( float,    scomplex, float,    s, c, s, tfuncname, varname ) \
-GENTFUNC3( float,    scomplex, scomplex, s, c, c, tfuncname, varname ) \
-\
-GENTFUNC3( double,   double,   dcomplex, d, d, z, tfuncname, varname ) \
-GENTFUNC3( double,   dcomplex, double,   d, z, d, tfuncname, varname ) \
-GENTFUNC3( double,   dcomplex, dcomplex, d, z, z, tfuncname, varname ) \
-\
-GENTFUNC3( scomplex, float,    float,    c, s, s, tfuncname, varname ) \
-GENTFUNC3( scomplex, float,    scomplex, c, s, c, tfuncname, varname ) \
-GENTFUNC3( scomplex, scomplex, float,    c, c, s, tfuncname, varname ) \
-\
-GENTFUNC3( dcomplex, double,   double,   z, d, d, tfuncname, varname ) \
-GENTFUNC3( dcomplex, double,   dcomplex, z, d, z, tfuncname, varname ) \
-GENTFUNC3( dcomplex, dcomplex, double,   z, z, d, tfuncname, varname )
-
-// -- (two auxiliary arguments) --
-
-#define INSERT_GENTFUNC3_MIX_D2( tfuncname, varname1, varname2 ) \
-\
-GENTFUNC3( float,    float,    scomplex, s, s, c, tfuncname, varname1, varname2 ) \
-GENTFUNC3( float,    scomplex, float,    s, c, s, tfuncname, varname1, varname2 ) \
-GENTFUNC3( float,    scomplex, scomplex, s, c, c, tfuncname, varname1, varname2 ) \
-\
-GENTFUNC3( double,   double,   dcomplex, d, d, z, tfuncname, varname1, varname2 ) \
-GENTFUNC3( double,   dcomplex, double,   d, z, d, tfuncname, varname1, varname2 ) \
-GENTFUNC3( double,   dcomplex, dcomplex, d, z, z, tfuncname, varname1, varname2 ) \
-\
-GENTFUNC3( scomplex, float,    float,    c, s, s, tfuncname, varname1, varname2 ) \
-GENTFUNC3( scomplex, float,    scomplex, c, s, c, tfuncname, varname1, varname2 ) \
-GENTFUNC3( scomplex, scomplex, float,    c, c, s, tfuncname, varname1, varname2 ) \
-\
-GENTFUNC3( dcomplex, double,   double,   z, d, d, tfuncname, varname1, varname2 ) \
-GENTFUNC3( dcomplex, double,   dcomplex, z, d, z, tfuncname, varname1, varname2 ) \
-GENTFUNC3( dcomplex, dcomplex, double,   z, z, d, tfuncname, varname1, varname2 )
+GENTFUNC3( dcomplex, double,   double,   z, d, d, __VA_ARGS__ ) \
+GENTFUNC3( dcomplex, double,   dcomplex, z, d, z, __VA_ARGS__ ) \
+GENTFUNC3( dcomplex, dcomplex, double,   z, z, d, __VA_ARGS__ )
 
 
 
 // -- Mixed precision three-operand macro --
 
-// -- (no auxiliary arguments) --
-
-#define INSERT_GENTFUNC3_MIX_P0( tfuncname ) \
+#define INSERT_GENTFUNC3_MIX_P( ... ) \
 \
-GENTFUNC3( float,    float,    double,   s, s, d, tfuncname ) \
-GENTFUNC3( float,    float,    dcomplex, s, s, z, tfuncname ) \
+GENTFUNC3( float,    float,    double,   s, s, d, __VA_ARGS__ ) \
+GENTFUNC3( float,    float,    dcomplex, s, s, z, __VA_ARGS__ ) \
 \
-GENTFUNC3( float,    double,   float,    s, d, s, tfuncname ) \
-GENTFUNC3( float,    double,   double,   s, d, d, tfuncname ) \
-GENTFUNC3( float,    double,   scomplex, s, d, c, tfuncname ) \
-GENTFUNC3( float,    double,   dcomplex, s, d, z, tfuncname ) \
+GENTFUNC3( float,    double,   float,    s, d, s, __VA_ARGS__ ) \
+GENTFUNC3( float,    double,   double,   s, d, d, __VA_ARGS__ ) \
+GENTFUNC3( float,    double,   scomplex, s, d, c, __VA_ARGS__ ) \
+GENTFUNC3( float,    double,   dcomplex, s, d, z, __VA_ARGS__ ) \
 \
-GENTFUNC3( float,    scomplex, double,   s, c, d, tfuncname ) \
-GENTFUNC3( float,    scomplex, dcomplex, s, c, z, tfuncname ) \
+GENTFUNC3( float,    scomplex, double,   s, c, d, __VA_ARGS__ ) \
+GENTFUNC3( float,    scomplex, dcomplex, s, c, z, __VA_ARGS__ ) \
 \
-GENTFUNC3( float,    dcomplex, float,    s, z, s, tfuncname ) \
-GENTFUNC3( float,    dcomplex, double,   s, z, d, tfuncname ) \
-GENTFUNC3( float,    dcomplex, scomplex, s, z, c, tfuncname ) \
-GENTFUNC3( float,    dcomplex, dcomplex, s, z, z, tfuncname ) \
+GENTFUNC3( float,    dcomplex, float,    s, z, s, __VA_ARGS__ ) \
+GENTFUNC3( float,    dcomplex, double,   s, z, d, __VA_ARGS__ ) \
+GENTFUNC3( float,    dcomplex, scomplex, s, z, c, __VA_ARGS__ ) \
+GENTFUNC3( float,    dcomplex, dcomplex, s, z, z, __VA_ARGS__ ) \
 \
 \
-GENTFUNC3( double,   float,    float,    d, s, s, tfuncname ) \
-GENTFUNC3( double,   float,    double,   d, s, d, tfuncname ) \
-GENTFUNC3( double,   float,    scomplex, d, s, c, tfuncname ) \
-GENTFUNC3( double,   float,    dcomplex, d, s, z, tfuncname ) \
+GENTFUNC3( double,   float,    float,    d, s, s, __VA_ARGS__ ) \
+GENTFUNC3( double,   float,    double,   d, s, d, __VA_ARGS__ ) \
+GENTFUNC3( double,   float,    scomplex, d, s, c, __VA_ARGS__ ) \
+GENTFUNC3( double,   float,    dcomplex, d, s, z, __VA_ARGS__ ) \
 \
-GENTFUNC3( double,   double,   float,    d, d, s, tfuncname ) \
-GENTFUNC3( double,   double,   scomplex, d, d, c, tfuncname ) \
+GENTFUNC3( double,   double,   float,    d, d, s, __VA_ARGS__ ) \
+GENTFUNC3( double,   double,   scomplex, d, d, c, __VA_ARGS__ ) \
 \
-GENTFUNC3( double,   scomplex, float,    d, c, s, tfuncname ) \
-GENTFUNC3( double,   scomplex, double,   d, c, d, tfuncname ) \
-GENTFUNC3( double,   scomplex, scomplex, d, c, c, tfuncname ) \
-GENTFUNC3( double,   scomplex, dcomplex, d, c, z, tfuncname ) \
+GENTFUNC3( double,   scomplex, float,    d, c, s, __VA_ARGS__ ) \
+GENTFUNC3( double,   scomplex, double,   d, c, d, __VA_ARGS__ ) \
+GENTFUNC3( double,   scomplex, scomplex, d, c, c, __VA_ARGS__ ) \
+GENTFUNC3( double,   scomplex, dcomplex, d, c, z, __VA_ARGS__ ) \
 \
-GENTFUNC3( double,   dcomplex, float,    d, z, s, tfuncname ) \
-GENTFUNC3( double,   dcomplex, scomplex, d, z, c, tfuncname ) \
-\
-\
-GENTFUNC3( scomplex, float,    double,   c, s, d, tfuncname ) \
-GENTFUNC3( scomplex, float,    dcomplex, c, s, z, tfuncname ) \
-\
-GENTFUNC3( scomplex, double,   float,    c, d, s, tfuncname ) \
-GENTFUNC3( scomplex, double,   double,   c, d, d, tfuncname ) \
-GENTFUNC3( scomplex, double,   scomplex, c, d, c, tfuncname ) \
-GENTFUNC3( scomplex, double,   dcomplex, c, d, z, tfuncname ) \
-\
-GENTFUNC3( scomplex, scomplex, double,   c, c, d, tfuncname ) \
-GENTFUNC3( scomplex, scomplex, dcomplex, c, c, z, tfuncname ) \
-\
-GENTFUNC3( scomplex, dcomplex, float,    c, z, s, tfuncname ) \
-GENTFUNC3( scomplex, dcomplex, double,   c, z, d, tfuncname ) \
-GENTFUNC3( scomplex, dcomplex, scomplex, c, z, c, tfuncname ) \
-GENTFUNC3( scomplex, dcomplex, dcomplex, c, z, z, tfuncname ) \
+GENTFUNC3( double,   dcomplex, float,    d, z, s, __VA_ARGS__ ) \
+GENTFUNC3( double,   dcomplex, scomplex, d, z, c, __VA_ARGS__ ) \
 \
 \
-GENTFUNC3( dcomplex, float,    float,    z, s, s, tfuncname ) \
-GENTFUNC3( dcomplex, float,    double,   z, s, d, tfuncname ) \
-GENTFUNC3( dcomplex, float,    scomplex, z, s, c, tfuncname ) \
-GENTFUNC3( dcomplex, float,    dcomplex, z, s, z, tfuncname ) \
+GENTFUNC3( scomplex, float,    double,   c, s, d, __VA_ARGS__ ) \
+GENTFUNC3( scomplex, float,    dcomplex, c, s, z, __VA_ARGS__ ) \
 \
-GENTFUNC3( dcomplex, double,   float,    z, d, s, tfuncname ) \
-GENTFUNC3( dcomplex, double,   scomplex, z, d, c, tfuncname ) \
+GENTFUNC3( scomplex, double,   float,    c, d, s, __VA_ARGS__ ) \
+GENTFUNC3( scomplex, double,   double,   c, d, d, __VA_ARGS__ ) \
+GENTFUNC3( scomplex, double,   scomplex, c, d, c, __VA_ARGS__ ) \
+GENTFUNC3( scomplex, double,   dcomplex, c, d, z, __VA_ARGS__ ) \
 \
-GENTFUNC3( dcomplex, scomplex, float,    z, c, s, tfuncname ) \
-GENTFUNC3( dcomplex, scomplex, double,   z, c, d, tfuncname ) \
-GENTFUNC3( dcomplex, scomplex, scomplex, z, c, c, tfuncname ) \
-GENTFUNC3( dcomplex, scomplex, dcomplex, z, c, z, tfuncname ) \
+GENTFUNC3( scomplex, scomplex, double,   c, c, d, __VA_ARGS__ ) \
+GENTFUNC3( scomplex, scomplex, dcomplex, c, c, z, __VA_ARGS__ ) \
 \
-GENTFUNC3( dcomplex, dcomplex, float,    z, z, s, tfuncname ) \
-GENTFUNC3( dcomplex, dcomplex, scomplex, z, z, c, tfuncname )
-
-// -- (one auxiliary argument) --
-
-#define INSERT_GENTFUNC3_MIX_P( tfuncname, varname ) \
-\
-GENTFUNC3( float,    float,    double,   s, s, d, tfuncname, varname ) \
-GENTFUNC3( float,    float,    dcomplex, s, s, z, tfuncname, varname ) \
-\
-GENTFUNC3( float,    double,   float,    s, d, s, tfuncname, varname ) \
-GENTFUNC3( float,    double,   double,   s, d, d, tfuncname, varname ) \
-GENTFUNC3( float,    double,   scomplex, s, d, c, tfuncname, varname ) \
-GENTFUNC3( float,    double,   dcomplex, s, d, z, tfuncname, varname ) \
-\
-GENTFUNC3( float,    scomplex, double,   s, c, d, tfuncname, varname ) \
-GENTFUNC3( float,    scomplex, dcomplex, s, c, z, tfuncname, varname ) \
-\
-GENTFUNC3( float,    dcomplex, float,    s, z, s, tfuncname, varname ) \
-GENTFUNC3( float,    dcomplex, double,   s, z, d, tfuncname, varname ) \
-GENTFUNC3( float,    dcomplex, scomplex, s, z, c, tfuncname, varname ) \
-GENTFUNC3( float,    dcomplex, dcomplex, s, z, z, tfuncname, varname ) \
+GENTFUNC3( scomplex, dcomplex, float,    c, z, s, __VA_ARGS__ ) \
+GENTFUNC3( scomplex, dcomplex, double,   c, z, d, __VA_ARGS__ ) \
+GENTFUNC3( scomplex, dcomplex, scomplex, c, z, c, __VA_ARGS__ ) \
+GENTFUNC3( scomplex, dcomplex, dcomplex, c, z, z, __VA_ARGS__ ) \
 \
 \
-GENTFUNC3( double,   float,    float,    d, s, s, tfuncname, varname ) \
-GENTFUNC3( double,   float,    double,   d, s, d, tfuncname, varname ) \
-GENTFUNC3( double,   float,    scomplex, d, s, c, tfuncname, varname ) \
-GENTFUNC3( double,   float,    dcomplex, d, s, z, tfuncname, varname ) \
+GENTFUNC3( dcomplex, float,    float,    z, s, s, __VA_ARGS__ ) \
+GENTFUNC3( dcomplex, float,    double,   z, s, d, __VA_ARGS__ ) \
+GENTFUNC3( dcomplex, float,    scomplex, z, s, c, __VA_ARGS__ ) \
+GENTFUNC3( dcomplex, float,    dcomplex, z, s, z, __VA_ARGS__ ) \
 \
-GENTFUNC3( double,   double,   float,    d, d, s, tfuncname, varname ) \
-GENTFUNC3( double,   double,   scomplex, d, d, c, tfuncname, varname ) \
+GENTFUNC3( dcomplex, double,   float,    z, d, s, __VA_ARGS__ ) \
+GENTFUNC3( dcomplex, double,   scomplex, z, d, c, __VA_ARGS__ ) \
 \
-GENTFUNC3( double,   scomplex, float,    d, c, s, tfuncname, varname ) \
-GENTFUNC3( double,   scomplex, double,   d, c, d, tfuncname, varname ) \
-GENTFUNC3( double,   scomplex, scomplex, d, c, c, tfuncname, varname ) \
-GENTFUNC3( double,   scomplex, dcomplex, d, c, z, tfuncname, varname ) \
+GENTFUNC3( dcomplex, scomplex, float,    z, c, s, __VA_ARGS__ ) \
+GENTFUNC3( dcomplex, scomplex, double,   z, c, d, __VA_ARGS__ ) \
+GENTFUNC3( dcomplex, scomplex, scomplex, z, c, c, __VA_ARGS__ ) \
+GENTFUNC3( dcomplex, scomplex, dcomplex, z, c, z, __VA_ARGS__ ) \
 \
-GENTFUNC3( double,   dcomplex, float,    d, z, s, tfuncname, varname ) \
-GENTFUNC3( double,   dcomplex, scomplex, d, z, c, tfuncname, varname ) \
-\
-\
-GENTFUNC3( scomplex, float,    double,   c, s, d, tfuncname, varname ) \
-GENTFUNC3( scomplex, float,    dcomplex, c, s, z, tfuncname, varname ) \
-\
-GENTFUNC3( scomplex, double,   float,    c, d, s, tfuncname, varname ) \
-GENTFUNC3( scomplex, double,   double,   c, d, d, tfuncname, varname ) \
-GENTFUNC3( scomplex, double,   scomplex, c, d, c, tfuncname, varname ) \
-GENTFUNC3( scomplex, double,   dcomplex, c, d, z, tfuncname, varname ) \
-\
-GENTFUNC3( scomplex, scomplex, double,   c, c, d, tfuncname, varname ) \
-GENTFUNC3( scomplex, scomplex, dcomplex, c, c, z, tfuncname, varname ) \
-\
-GENTFUNC3( scomplex, dcomplex, float,    c, z, s, tfuncname, varname ) \
-GENTFUNC3( scomplex, dcomplex, double,   c, z, d, tfuncname, varname ) \
-GENTFUNC3( scomplex, dcomplex, scomplex, c, z, c, tfuncname, varname ) \
-GENTFUNC3( scomplex, dcomplex, dcomplex, c, z, z, tfuncname, varname ) \
-\
-\
-GENTFUNC3( dcomplex, float,    float,    z, s, s, tfuncname, varname ) \
-GENTFUNC3( dcomplex, float,    double,   z, s, d, tfuncname, varname ) \
-GENTFUNC3( dcomplex, float,    scomplex, z, s, c, tfuncname, varname ) \
-GENTFUNC3( dcomplex, float,    dcomplex, z, s, z, tfuncname, varname ) \
-\
-GENTFUNC3( dcomplex, double,   float,    z, d, s, tfuncname, varname ) \
-GENTFUNC3( dcomplex, double,   scomplex, z, d, c, tfuncname, varname ) \
-\
-GENTFUNC3( dcomplex, scomplex, float,    z, c, s, tfuncname, varname ) \
-GENTFUNC3( dcomplex, scomplex, double,   z, c, d, tfuncname, varname ) \
-GENTFUNC3( dcomplex, scomplex, scomplex, z, c, c, tfuncname, varname ) \
-GENTFUNC3( dcomplex, scomplex, dcomplex, z, c, z, tfuncname, varname ) \
-\
-GENTFUNC3( dcomplex, dcomplex, float,    z, z, s, tfuncname, varname ) \
-GENTFUNC3( dcomplex, dcomplex, scomplex, z, z, c, tfuncname, varname )
-
-// -- (two auxiliary arguments) --
-
-#define INSERT_GENTFUNC3_MIX_P2( tfuncname, varname1, varname2 ) \
-\
-GENTFUNC3( float,    float,    double,   s, s, d, tfuncname, varname1, varname2 ) \
-GENTFUNC3( float,    float,    dcomplex, s, s, z, tfuncname, varname1, varname2 ) \
-\
-GENTFUNC3( float,    double,   float,    s, d, s, tfuncname, varname1, varname2 ) \
-GENTFUNC3( float,    double,   double,   s, d, d, tfuncname, varname1, varname2 ) \
-GENTFUNC3( float,    double,   scomplex, s, d, c, tfuncname, varname1, varname2 ) \
-GENTFUNC3( float,    double,   dcomplex, s, d, z, tfuncname, varname1, varname2 ) \
-\
-GENTFUNC3( float,    scomplex, double,   s, c, d, tfuncname, varname1, varname2 ) \
-GENTFUNC3( float,    scomplex, dcomplex, s, c, z, tfuncname, varname1, varname2 ) \
-\
-GENTFUNC3( float,    dcomplex, float,    s, z, s, tfuncname, varname1, varname2 ) \
-GENTFUNC3( float,    dcomplex, double,   s, z, d, tfuncname, varname1, varname2 ) \
-GENTFUNC3( float,    dcomplex, scomplex, s, z, c, tfuncname, varname1, varname2 ) \
-GENTFUNC3( float,    dcomplex, dcomplex, s, z, z, tfuncname, varname1, varname2 ) \
-\
-\
-GENTFUNC3( double,   float,    float,    d, s, s, tfuncname, varname1, varname2 ) \
-GENTFUNC3( double,   float,    double,   d, s, d, tfuncname, varname1, varname2 ) \
-GENTFUNC3( double,   float,    scomplex, d, s, c, tfuncname, varname1, varname2 ) \
-GENTFUNC3( double,   float,    dcomplex, d, s, z, tfuncname, varname1, varname2 ) \
-\
-GENTFUNC3( double,   double,   float,    d, d, s, tfuncname, varname1, varname2 ) \
-GENTFUNC3( double,   double,   scomplex, d, d, c, tfuncname, varname1, varname2 ) \
-\
-GENTFUNC3( double,   scomplex, float,    d, c, s, tfuncname, varname1, varname2 ) \
-GENTFUNC3( double,   scomplex, double,   d, c, d, tfuncname, varname1, varname2 ) \
-GENTFUNC3( double,   scomplex, scomplex, d, c, c, tfuncname, varname1, varname2 ) \
-GENTFUNC3( double,   scomplex, dcomplex, d, c, z, tfuncname, varname1, varname2 ) \
-\
-GENTFUNC3( double,   dcomplex, float,    d, z, s, tfuncname, varname1, varname2 ) \
-GENTFUNC3( double,   dcomplex, scomplex, d, z, c, tfuncname, varname1, varname2 ) \
-\
-\
-GENTFUNC3( scomplex, float,    double,   c, s, d, tfuncname, varname1, varname2 ) \
-GENTFUNC3( scomplex, float,    dcomplex, c, s, z, tfuncname, varname1, varname2 ) \
-\
-GENTFUNC3( scomplex, double,   float,    c, d, s, tfuncname, varname1, varname2 ) \
-GENTFUNC3( scomplex, double,   double,   c, d, d, tfuncname, varname1, varname2 ) \
-GENTFUNC3( scomplex, double,   scomplex, c, d, c, tfuncname, varname1, varname2 ) \
-GENTFUNC3( scomplex, double,   dcomplex, c, d, z, tfuncname, varname1, varname2 ) \
-\
-GENTFUNC3( scomplex, scomplex, double,   c, c, d, tfuncname, varname1, varname2 ) \
-GENTFUNC3( scomplex, scomplex, dcomplex, c, c, z, tfuncname, varname1, varname2 ) \
-\
-GENTFUNC3( scomplex, dcomplex, float,    c, z, s, tfuncname, varname1, varname2 ) \
-GENTFUNC3( scomplex, dcomplex, double,   c, z, d, tfuncname, varname1, varname2 ) \
-GENTFUNC3( scomplex, dcomplex, scomplex, c, z, c, tfuncname, varname1, varname2 ) \
-GENTFUNC3( scomplex, dcomplex, dcomplex, c, z, z, tfuncname, varname1, varname2 ) \
-\
-\
-GENTFUNC3( dcomplex, float,    float,    z, s, s, tfuncname, varname1, varname2 ) \
-GENTFUNC3( dcomplex, float,    double,   z, s, d, tfuncname, varname1, varname2 ) \
-GENTFUNC3( dcomplex, float,    scomplex, z, s, c, tfuncname, varname1, varname2 ) \
-GENTFUNC3( dcomplex, float,    dcomplex, z, s, z, tfuncname, varname1, varname2 ) \
-\
-GENTFUNC3( dcomplex, double,   float,    z, d, s, tfuncname, varname1, varname2 ) \
-GENTFUNC3( dcomplex, double,   scomplex, z, d, c, tfuncname, varname1, varname2 ) \
-\
-GENTFUNC3( dcomplex, scomplex, float,    z, c, s, tfuncname, varname1, varname2 ) \
-GENTFUNC3( dcomplex, scomplex, double,   z, c, d, tfuncname, varname1, varname2 ) \
-GENTFUNC3( dcomplex, scomplex, scomplex, z, c, c, tfuncname, varname1, varname2 ) \
-GENTFUNC3( dcomplex, scomplex, dcomplex, z, c, z, tfuncname, varname1, varname2 ) \
-\
-GENTFUNC3( dcomplex, dcomplex, float,    z, z, s, tfuncname, varname1, varname2 ) \
-GENTFUNC3( dcomplex, dcomplex, scomplex, z, z, c, tfuncname, varname1, varname2 )
+GENTFUNC3( dcomplex, dcomplex, float,    z, z, s, __VA_ARGS__ ) \
+GENTFUNC3( dcomplex, dcomplex, scomplex, z, z, c, __VA_ARGS__ )
 
 
 
 // -- Basic three-operand with union of operands 1 and 2 --
 
-// -- (no auxiliary arguments) --
-
-#define INSERT_GENTFUNC3U12_BASIC0( tfuncname ) \
+#define INSERT_GENTFUNC3U12_BASIC( ... ) \
 \
-GENTFUNC3U12( float,    float,    float,    float,    s, s, s, s, tfuncname ) \
-GENTFUNC3U12( double,   double,   double,   double,   d, d, d, d, tfuncname ) \
-GENTFUNC3U12( scomplex, scomplex, scomplex, scomplex, c, c, c, c, tfuncname ) \
-GENTFUNC3U12( dcomplex, dcomplex, dcomplex, dcomplex, z, z, z, z, tfuncname )
-
-// -- (one auxiliary argument) --
-
-#define INSERT_GENTFUNC3U12_BASIC( tfuncname, varname ) \
-\
-GENTFUNC3U12( float,    float,    float,    float,    s, s, s, s, tfuncname, varname ) \
-GENTFUNC3U12( double,   double,   double,   double,   d, d, d, d, tfuncname, varname ) \
-GENTFUNC3U12( scomplex, scomplex, scomplex, scomplex, c, c, c, c, tfuncname, varname ) \
-GENTFUNC3U12( dcomplex, dcomplex, dcomplex, dcomplex, z, z, z, z, tfuncname, varname )
-
-// -- (two auxiliary arguments) --
-
-#define INSERT_GENTFUNC3U12_BASIC2( tfuncname, varname1, varname2 ) \
-\
-GENTFUNC3U12( float,    float,    float,    float,    s, s, s, s, tfuncname, varname1, varname2 ) \
-GENTFUNC3U12( double,   double,   double,   double,   d, d, d, d, tfuncname, varname1, varname2 ) \
-GENTFUNC3U12( scomplex, scomplex, scomplex, scomplex, c, c, c, c, tfuncname, varname1, varname2 ) \
-GENTFUNC3U12( dcomplex, dcomplex, dcomplex, dcomplex, z, z, z, z, tfuncname, varname1, varname2 )
+GENTFUNC3U12( float,    float,    float,    float,    s, s, s, s, __VA_ARGS__ ) \
+GENTFUNC3U12( double,   double,   double,   double,   d, d, d, d, __VA_ARGS__ ) \
+GENTFUNC3U12( scomplex, scomplex, scomplex, scomplex, c, c, c, c, __VA_ARGS__ ) \
+GENTFUNC3U12( dcomplex, dcomplex, dcomplex, dcomplex, z, z, z, z, __VA_ARGS__ )
 
 
 
 // -- Mixed domain three-operand with union of operands 1 and 2 --
 
-// -- (no auxiliary arguments) --
-
-#define INSERT_GENTFUNC3U12_MIX_D0( tfuncname ) \
+#define INSERT_GENTFUNC3U12_MIX_D( ... ) \
 \
-GENTFUNC3U12( float,    float,    scomplex, float,    s, s, c, s, tfuncname ) \
-GENTFUNC3U12( float,    scomplex, float,    scomplex, s, c, s, c, tfuncname ) \
-GENTFUNC3U12( float,    scomplex, scomplex, scomplex, s, c, c, c, tfuncname ) \
+GENTFUNC3U12( float,    float,    scomplex, float,    s, s, c, s, __VA_ARGS__ ) \
+GENTFUNC3U12( float,    scomplex, float,    scomplex, s, c, s, c, __VA_ARGS__ ) \
+GENTFUNC3U12( float,    scomplex, scomplex, scomplex, s, c, c, c, __VA_ARGS__ ) \
 \
-GENTFUNC3U12( double,   double,   dcomplex, double,   d, d, z, d, tfuncname ) \
-GENTFUNC3U12( double,   dcomplex, double,   dcomplex, d, z, d, z, tfuncname ) \
-GENTFUNC3U12( double,   dcomplex, dcomplex, dcomplex, d, z, z, z, tfuncname ) \
+GENTFUNC3U12( double,   double,   dcomplex, double,   d, d, z, d, __VA_ARGS__ ) \
+GENTFUNC3U12( double,   dcomplex, double,   dcomplex, d, z, d, z, __VA_ARGS__ ) \
+GENTFUNC3U12( double,   dcomplex, dcomplex, dcomplex, d, z, z, z, __VA_ARGS__ ) \
 \
-GENTFUNC3U12( scomplex, float,    float,    scomplex, c, s, s, c, tfuncname ) \
-GENTFUNC3U12( scomplex, float,    scomplex, scomplex, c, s, c, c, tfuncname ) \
-GENTFUNC3U12( scomplex, scomplex, float,    scomplex, c, c, s, c, tfuncname ) \
+GENTFUNC3U12( scomplex, float,    float,    scomplex, c, s, s, c, __VA_ARGS__ ) \
+GENTFUNC3U12( scomplex, float,    scomplex, scomplex, c, s, c, c, __VA_ARGS__ ) \
+GENTFUNC3U12( scomplex, scomplex, float,    scomplex, c, c, s, c, __VA_ARGS__ ) \
 \
-GENTFUNC3U12( dcomplex, double,   double,   dcomplex, z, d, d, z, tfuncname ) \
-GENTFUNC3U12( dcomplex, double,   dcomplex, dcomplex, z, d, z, z, tfuncname ) \
-GENTFUNC3U12( dcomplex, dcomplex, double,   dcomplex, z, z, d, z, tfuncname )
-
-// -- (one auxiliary argument) --
-
-#define INSERT_GENTFUNC3U12_MIX_D( tfuncname, varname ) \
-\
-GENTFUNC3U12( float,    float,    scomplex, float,    s, s, c, s, tfuncname, varname ) \
-GENTFUNC3U12( float,    scomplex, float,    scomplex, s, c, s, c, tfuncname, varname ) \
-GENTFUNC3U12( float,    scomplex, scomplex, scomplex, s, c, c, c, tfuncname, varname ) \
-\
-GENTFUNC3U12( double,   double,   dcomplex, double,   d, d, z, d, tfuncname, varname ) \
-GENTFUNC3U12( double,   dcomplex, double,   dcomplex, d, z, d, z, tfuncname, varname ) \
-GENTFUNC3U12( double,   dcomplex, dcomplex, dcomplex, d, z, z, z, tfuncname, varname ) \
-\
-GENTFUNC3U12( scomplex, float,    float,    scomplex, c, s, s, c, tfuncname, varname ) \
-GENTFUNC3U12( scomplex, float,    scomplex, scomplex, c, s, c, c, tfuncname, varname ) \
-GENTFUNC3U12( scomplex, scomplex, float,    scomplex, c, c, s, c, tfuncname, varname ) \
-\
-GENTFUNC3U12( dcomplex, double,   double,   dcomplex, z, d, d, z, tfuncname, varname ) \
-GENTFUNC3U12( dcomplex, double,   dcomplex, dcomplex, z, d, z, z, tfuncname, varname ) \
-GENTFUNC3U12( dcomplex, dcomplex, double,   dcomplex, z, z, d, z, tfuncname, varname )
-
-// -- (two auxiliary arguments) --
-
-#define INSERT_GENTFUNC3U12_MIX_D2( tfuncname, varname1, varname2 ) \
-\
-GENTFUNC3U12( float,    float,    scomplex, float,    s, s, c, s, tfuncname, varname1, varname2 ) \
-GENTFUNC3U12( float,    scomplex, float,    scomplex, s, c, s, c, tfuncname, varname1, varname2 ) \
-GENTFUNC3U12( float,    scomplex, scomplex, scomplex, s, c, c, c, tfuncname, varname1, varname2 ) \
-\
-GENTFUNC3U12( double,   double,   dcomplex, double,   d, d, z, d, tfuncname, varname1, varname2 ) \
-GENTFUNC3U12( double,   dcomplex, double,   dcomplex, d, z, d, z, tfuncname, varname1, varname2 ) \
-GENTFUNC3U12( double,   dcomplex, dcomplex, dcomplex, d, z, z, z, tfuncname, varname1, varname2 ) \
-\
-GENTFUNC3U12( scomplex, float,    float,    scomplex, c, s, s, c, tfuncname, varname1, varname2 ) \
-GENTFUNC3U12( scomplex, float,    scomplex, scomplex, c, s, c, c, tfuncname, varname1, varname2 ) \
-GENTFUNC3U12( scomplex, scomplex, float,    scomplex, c, c, s, c, tfuncname, varname1, varname2 ) \
-\
-GENTFUNC3U12( dcomplex, double,   double,   dcomplex, z, d, d, z, tfuncname, varname1, varname2 ) \
-GENTFUNC3U12( dcomplex, double,   dcomplex, dcomplex, z, d, z, z, tfuncname, varname1, varname2 ) \
-GENTFUNC3U12( dcomplex, dcomplex, double,   dcomplex, z, z, d, z, tfuncname, varname1, varname2 )
+GENTFUNC3U12( dcomplex, double,   double,   dcomplex, z, d, d, z, __VA_ARGS__ ) \
+GENTFUNC3U12( dcomplex, double,   dcomplex, dcomplex, z, d, z, z, __VA_ARGS__ ) \
+GENTFUNC3U12( dcomplex, dcomplex, double,   dcomplex, z, z, d, z, __VA_ARGS__ )
 
 
 
 // -- Mixed precision three-operand with union of operands 1 and 2 --
 
-// -- (no auxiliary arguments) --
-
-#define INSERT_GENTFUNC3U12_MIX_P0( tfuncname ) \
+#define INSERT_GENTFUNC3U12_MIX_P( ... ) \
 \
-GENTFUNC3U12( float,    float,    double,   float,    s, s, d, s, tfuncname ) \
-GENTFUNC3U12( float,    float,    dcomplex, float,    s, s, z, s, tfuncname ) \
+GENTFUNC3U12( float,    float,    double,   float,    s, s, d, s, __VA_ARGS__ ) \
+GENTFUNC3U12( float,    float,    dcomplex, float,    s, s, z, s, __VA_ARGS__ ) \
 \
-GENTFUNC3U12( float,    double,   float,    double,   s, d, s, d, tfuncname ) \
-GENTFUNC3U12( float,    double,   double,   double,   s, d, d, d, tfuncname ) \
-GENTFUNC3U12( float,    double,   scomplex, double,   s, d, c, d, tfuncname ) \
-GENTFUNC3U12( float,    double,   dcomplex, double,   s, d, z, d, tfuncname ) \
+GENTFUNC3U12( float,    double,   float,    double,   s, d, s, d, __VA_ARGS__ ) \
+GENTFUNC3U12( float,    double,   double,   double,   s, d, d, d, __VA_ARGS__ ) \
+GENTFUNC3U12( float,    double,   scomplex, double,   s, d, c, d, __VA_ARGS__ ) \
+GENTFUNC3U12( float,    double,   dcomplex, double,   s, d, z, d, __VA_ARGS__ ) \
 \
-GENTFUNC3U12( float,    scomplex, double,   scomplex, s, c, d, c, tfuncname ) \
-GENTFUNC3U12( float,    scomplex, dcomplex, scomplex, s, c, z, c, tfuncname ) \
+GENTFUNC3U12( float,    scomplex, double,   scomplex, s, c, d, c, __VA_ARGS__ ) \
+GENTFUNC3U12( float,    scomplex, dcomplex, scomplex, s, c, z, c, __VA_ARGS__ ) \
 \
-GENTFUNC3U12( float,    dcomplex, float,    dcomplex, s, z, s, z, tfuncname ) \
-GENTFUNC3U12( float,    dcomplex, double,   dcomplex, s, z, d, z, tfuncname ) \
-GENTFUNC3U12( float,    dcomplex, scomplex, dcomplex, s, z, c, z, tfuncname ) \
-GENTFUNC3U12( float,    dcomplex, dcomplex, dcomplex, s, z, z, z, tfuncname ) \
+GENTFUNC3U12( float,    dcomplex, float,    dcomplex, s, z, s, z, __VA_ARGS__ ) \
+GENTFUNC3U12( float,    dcomplex, double,   dcomplex, s, z, d, z, __VA_ARGS__ ) \
+GENTFUNC3U12( float,    dcomplex, scomplex, dcomplex, s, z, c, z, __VA_ARGS__ ) \
+GENTFUNC3U12( float,    dcomplex, dcomplex, dcomplex, s, z, z, z, __VA_ARGS__ ) \
 \
 \
-GENTFUNC3U12( double,   float,    float,    double,   d, s, s, d, tfuncname ) \
-GENTFUNC3U12( double,   float,    double,   double,   d, s, d, d, tfuncname ) \
-GENTFUNC3U12( double,   float,    scomplex, double,   d, s, c, d, tfuncname ) \
-GENTFUNC3U12( double,   float,    dcomplex, double,   d, s, z, d, tfuncname ) \
+GENTFUNC3U12( double,   float,    float,    double,   d, s, s, d, __VA_ARGS__ ) \
+GENTFUNC3U12( double,   float,    double,   double,   d, s, d, d, __VA_ARGS__ ) \
+GENTFUNC3U12( double,   float,    scomplex, double,   d, s, c, d, __VA_ARGS__ ) \
+GENTFUNC3U12( double,   float,    dcomplex, double,   d, s, z, d, __VA_ARGS__ ) \
 \
-GENTFUNC3U12( double,   double,   float,    double,   d, d, s, d, tfuncname ) \
-GENTFUNC3U12( double,   double,   scomplex, double,   d, d, c, d, tfuncname ) \
+GENTFUNC3U12( double,   double,   float,    double,   d, d, s, d, __VA_ARGS__ ) \
+GENTFUNC3U12( double,   double,   scomplex, double,   d, d, c, d, __VA_ARGS__ ) \
 \
-GENTFUNC3U12( double,   scomplex, float,    dcomplex, d, c, s, z, tfuncname ) \
-GENTFUNC3U12( double,   scomplex, double,   dcomplex, d, c, d, z, tfuncname ) \
-GENTFUNC3U12( double,   scomplex, scomplex, dcomplex, d, c, c, z, tfuncname ) \
-GENTFUNC3U12( double,   scomplex, dcomplex, dcomplex, d, c, z, z, tfuncname ) \
+GENTFUNC3U12( double,   scomplex, float,    dcomplex, d, c, s, z, __VA_ARGS__ ) \
+GENTFUNC3U12( double,   scomplex, double,   dcomplex, d, c, d, z, __VA_ARGS__ ) \
+GENTFUNC3U12( double,   scomplex, scomplex, dcomplex, d, c, c, z, __VA_ARGS__ ) \
+GENTFUNC3U12( double,   scomplex, dcomplex, dcomplex, d, c, z, z, __VA_ARGS__ ) \
 \
-GENTFUNC3U12( double,   dcomplex, float,    dcomplex, d, z, s, z, tfuncname ) \
-GENTFUNC3U12( double,   dcomplex, scomplex, dcomplex, d, z, c, z, tfuncname ) \
-\
-\
-GENTFUNC3U12( scomplex, float,    double,   scomplex, c, s, d, c, tfuncname ) \
-GENTFUNC3U12( scomplex, float,    dcomplex, scomplex, c, s, z, c, tfuncname ) \
-\
-GENTFUNC3U12( scomplex, double,   float,    dcomplex, c, d, s, z, tfuncname ) \
-GENTFUNC3U12( scomplex, double,   double,   dcomplex, c, d, d, z, tfuncname ) \
-GENTFUNC3U12( scomplex, double,   scomplex, dcomplex, c, d, c, z, tfuncname ) \
-GENTFUNC3U12( scomplex, double,   dcomplex, dcomplex, c, d, z, z, tfuncname ) \
-\
-GENTFUNC3U12( scomplex, scomplex, double,   scomplex, c, c, d, c, tfuncname ) \
-GENTFUNC3U12( scomplex, scomplex, dcomplex, scomplex, c, c, z, c, tfuncname ) \
-\
-GENTFUNC3U12( scomplex, dcomplex, float,    dcomplex, c, z, s, z, tfuncname ) \
-GENTFUNC3U12( scomplex, dcomplex, double,   dcomplex, c, z, d, z, tfuncname ) \
-GENTFUNC3U12( scomplex, dcomplex, scomplex, dcomplex, c, z, c, z, tfuncname ) \
-GENTFUNC3U12( scomplex, dcomplex, dcomplex, dcomplex, c, z, z, z, tfuncname ) \
+GENTFUNC3U12( double,   dcomplex, float,    dcomplex, d, z, s, z, __VA_ARGS__ ) \
+GENTFUNC3U12( double,   dcomplex, scomplex, dcomplex, d, z, c, z, __VA_ARGS__ ) \
 \
 \
-GENTFUNC3U12( dcomplex, float,    float,    dcomplex, z, s, s, z, tfuncname ) \
-GENTFUNC3U12( dcomplex, float,    double,   dcomplex, z, s, d, z, tfuncname ) \
-GENTFUNC3U12( dcomplex, float,    scomplex, dcomplex, z, s, c, z, tfuncname ) \
-GENTFUNC3U12( dcomplex, float,    dcomplex, dcomplex, z, s, z, z, tfuncname ) \
+GENTFUNC3U12( scomplex, float,    double,   scomplex, c, s, d, c, __VA_ARGS__ ) \
+GENTFUNC3U12( scomplex, float,    dcomplex, scomplex, c, s, z, c, __VA_ARGS__ ) \
 \
-GENTFUNC3U12( dcomplex, double,   float,    dcomplex, z, d, s, z, tfuncname ) \
-GENTFUNC3U12( dcomplex, double,   scomplex, dcomplex, z, d, c, z, tfuncname ) \
+GENTFUNC3U12( scomplex, double,   float,    dcomplex, c, d, s, z, __VA_ARGS__ ) \
+GENTFUNC3U12( scomplex, double,   double,   dcomplex, c, d, d, z, __VA_ARGS__ ) \
+GENTFUNC3U12( scomplex, double,   scomplex, dcomplex, c, d, c, z, __VA_ARGS__ ) \
+GENTFUNC3U12( scomplex, double,   dcomplex, dcomplex, c, d, z, z, __VA_ARGS__ ) \
 \
-GENTFUNC3U12( dcomplex, scomplex, float,    dcomplex, z, c, s, z, tfuncname ) \
-GENTFUNC3U12( dcomplex, scomplex, double,   dcomplex, z, c, d, z, tfuncname ) \
-GENTFUNC3U12( dcomplex, scomplex, scomplex, dcomplex, z, c, c, z, tfuncname ) \
-GENTFUNC3U12( dcomplex, scomplex, dcomplex, dcomplex, z, c, z, z, tfuncname ) \
+GENTFUNC3U12( scomplex, scomplex, double,   scomplex, c, c, d, c, __VA_ARGS__ ) \
+GENTFUNC3U12( scomplex, scomplex, dcomplex, scomplex, c, c, z, c, __VA_ARGS__ ) \
 \
-GENTFUNC3U12( dcomplex, dcomplex, float,    dcomplex, z, z, s, z, tfuncname ) \
-GENTFUNC3U12( dcomplex, dcomplex, scomplex, dcomplex, z, z, c, z, tfuncname )
-
-// -- (one auxiliary argument) --
-
-#define INSERT_GENTFUNC3U12_MIX_P( tfuncname, varname ) \
-\
-GENTFUNC3U12( float,    float,    double,   float,    s, s, d, s, tfuncname, varname ) \
-GENTFUNC3U12( float,    float,    dcomplex, float,    s, s, z, s, tfuncname, varname ) \
-\
-GENTFUNC3U12( float,    double,   float,    double,   s, d, s, d, tfuncname, varname ) \
-GENTFUNC3U12( float,    double,   double,   double,   s, d, d, d, tfuncname, varname ) \
-GENTFUNC3U12( float,    double,   scomplex, double,   s, d, c, d, tfuncname, varname ) \
-GENTFUNC3U12( float,    double,   dcomplex, double,   s, d, z, d, tfuncname, varname ) \
-\
-GENTFUNC3U12( float,    scomplex, double,   scomplex, s, c, d, c, tfuncname, varname ) \
-GENTFUNC3U12( float,    scomplex, dcomplex, scomplex, s, c, z, c, tfuncname, varname ) \
-\
-GENTFUNC3U12( float,    dcomplex, float,    dcomplex, s, z, s, z, tfuncname, varname ) \
-GENTFUNC3U12( float,    dcomplex, double,   dcomplex, s, z, d, z, tfuncname, varname ) \
-GENTFUNC3U12( float,    dcomplex, scomplex, dcomplex, s, z, c, z, tfuncname, varname ) \
-GENTFUNC3U12( float,    dcomplex, dcomplex, dcomplex, s, z, z, z, tfuncname, varname ) \
+GENTFUNC3U12( scomplex, dcomplex, float,    dcomplex, c, z, s, z, __VA_ARGS__ ) \
+GENTFUNC3U12( scomplex, dcomplex, double,   dcomplex, c, z, d, z, __VA_ARGS__ ) \
+GENTFUNC3U12( scomplex, dcomplex, scomplex, dcomplex, c, z, c, z, __VA_ARGS__ ) \
+GENTFUNC3U12( scomplex, dcomplex, dcomplex, dcomplex, c, z, z, z, __VA_ARGS__ ) \
 \
 \
-GENTFUNC3U12( double,   float,    float,    double,   d, s, s, d, tfuncname, varname ) \
-GENTFUNC3U12( double,   float,    double,   double,   d, s, d, d, tfuncname, varname ) \
-GENTFUNC3U12( double,   float,    scomplex, double,   d, s, c, d, tfuncname, varname ) \
-GENTFUNC3U12( double,   float,    dcomplex, double,   d, s, z, d, tfuncname, varname ) \
+GENTFUNC3U12( dcomplex, float,    float,    dcomplex, z, s, s, z, __VA_ARGS__ ) \
+GENTFUNC3U12( dcomplex, float,    double,   dcomplex, z, s, d, z, __VA_ARGS__ ) \
+GENTFUNC3U12( dcomplex, float,    scomplex, dcomplex, z, s, c, z, __VA_ARGS__ ) \
+GENTFUNC3U12( dcomplex, float,    dcomplex, dcomplex, z, s, z, z, __VA_ARGS__ ) \
 \
-GENTFUNC3U12( double,   double,   float,    double,   d, d, s, d, tfuncname, varname ) \
-GENTFUNC3U12( double,   double,   scomplex, double,   d, d, c, d, tfuncname, varname ) \
+GENTFUNC3U12( dcomplex, double,   float,    dcomplex, z, d, s, z, __VA_ARGS__ ) \
+GENTFUNC3U12( dcomplex, double,   scomplex, dcomplex, z, d, c, z, __VA_ARGS__ ) \
 \
-GENTFUNC3U12( double,   scomplex, float,    dcomplex, d, c, s, z, tfuncname, varname ) \
-GENTFUNC3U12( double,   scomplex, double,   dcomplex, d, c, d, z, tfuncname, varname ) \
-GENTFUNC3U12( double,   scomplex, scomplex, dcomplex, d, c, c, z, tfuncname, varname ) \
-GENTFUNC3U12( double,   scomplex, dcomplex, dcomplex, d, c, z, z, tfuncname, varname ) \
+GENTFUNC3U12( dcomplex, scomplex, float,    dcomplex, z, c, s, z, __VA_ARGS__ ) \
+GENTFUNC3U12( dcomplex, scomplex, double,   dcomplex, z, c, d, z, __VA_ARGS__ ) \
+GENTFUNC3U12( dcomplex, scomplex, scomplex, dcomplex, z, c, c, z, __VA_ARGS__ ) \
+GENTFUNC3U12( dcomplex, scomplex, dcomplex, dcomplex, z, c, z, z, __VA_ARGS__ ) \
 \
-GENTFUNC3U12( double,   dcomplex, float,    dcomplex, d, z, s, z, tfuncname, varname ) \
-GENTFUNC3U12( double,   dcomplex, scomplex, dcomplex, d, z, c, z, tfuncname, varname ) \
-\
-\
-GENTFUNC3U12( scomplex, float,    double,   scomplex, c, s, d, c, tfuncname, varname ) \
-GENTFUNC3U12( scomplex, float,    dcomplex, scomplex, c, s, z, c, tfuncname, varname ) \
-\
-GENTFUNC3U12( scomplex, double,   float,    dcomplex, c, d, s, z, tfuncname, varname ) \
-GENTFUNC3U12( scomplex, double,   double,   dcomplex, c, d, d, z, tfuncname, varname ) \
-GENTFUNC3U12( scomplex, double,   scomplex, dcomplex, c, d, c, z, tfuncname, varname ) \
-GENTFUNC3U12( scomplex, double,   dcomplex, dcomplex, c, d, z, z, tfuncname, varname ) \
-\
-GENTFUNC3U12( scomplex, scomplex, double,   scomplex, c, c, d, c, tfuncname, varname ) \
-GENTFUNC3U12( scomplex, scomplex, dcomplex, scomplex, c, c, z, c, tfuncname, varname ) \
-\
-GENTFUNC3U12( scomplex, dcomplex, float,    dcomplex, c, z, s, z, tfuncname, varname ) \
-GENTFUNC3U12( scomplex, dcomplex, double,   dcomplex, c, z, d, z, tfuncname, varname ) \
-GENTFUNC3U12( scomplex, dcomplex, scomplex, dcomplex, c, z, c, z, tfuncname, varname ) \
-GENTFUNC3U12( scomplex, dcomplex, dcomplex, dcomplex, c, z, z, z, tfuncname, varname ) \
-\
-\
-GENTFUNC3U12( dcomplex, float,    float,    dcomplex, z, s, s, z, tfuncname, varname ) \
-GENTFUNC3U12( dcomplex, float,    double,   dcomplex, z, s, d, z, tfuncname, varname ) \
-GENTFUNC3U12( dcomplex, float,    scomplex, dcomplex, z, s, c, z, tfuncname, varname ) \
-GENTFUNC3U12( dcomplex, float,    dcomplex, dcomplex, z, s, z, z, tfuncname, varname ) \
-\
-GENTFUNC3U12( dcomplex, double,   float,    dcomplex, z, d, s, z, tfuncname, varname ) \
-GENTFUNC3U12( dcomplex, double,   scomplex, dcomplex, z, d, c, z, tfuncname, varname ) \
-\
-GENTFUNC3U12( dcomplex, scomplex, float,    dcomplex, z, c, s, z, tfuncname, varname ) \
-GENTFUNC3U12( dcomplex, scomplex, double,   dcomplex, z, c, d, z, tfuncname, varname ) \
-GENTFUNC3U12( dcomplex, scomplex, scomplex, dcomplex, z, c, c, z, tfuncname, varname ) \
-GENTFUNC3U12( dcomplex, scomplex, dcomplex, dcomplex, z, c, z, z, tfuncname, varname ) \
-\
-GENTFUNC3U12( dcomplex, dcomplex, float,    dcomplex, z, z, s, z, tfuncname, varname ) \
-GENTFUNC3U12( dcomplex, dcomplex, scomplex, dcomplex, z, z, c, z, tfuncname, varname )
-
-// -- (two auxiliary arguments) --
-
-#define INSERT_GENTFUNC3U12_MIX_P2( tfuncname, varname1, varname2 ) \
-\
-GENTFUNC3U12( float,    float,    double,   float,    s, s, d, s, tfuncname, varname1, varname2 ) \
-GENTFUNC3U12( float,    float,    dcomplex, float,    s, s, z, s, tfuncname, varname1, varname2 ) \
-\
-GENTFUNC3U12( float,    double,   float,    double,   s, d, s, d, tfuncname, varname1, varname2 ) \
-GENTFUNC3U12( float,    double,   double,   double,   s, d, d, d, tfuncname, varname1, varname2 ) \
-GENTFUNC3U12( float,    double,   scomplex, double,   s, d, c, d, tfuncname, varname1, varname2 ) \
-GENTFUNC3U12( float,    double,   dcomplex, double,   s, d, z, d, tfuncname, varname1, varname2 ) \
-\
-GENTFUNC3U12( float,    scomplex, double,   scomplex, s, c, d, c, tfuncname, varname1, varname2 ) \
-GENTFUNC3U12( float,    scomplex, dcomplex, scomplex, s, c, z, c, tfuncname, varname1, varname2 ) \
-\
-GENTFUNC3U12( float,    dcomplex, float,    dcomplex, s, z, s, z, tfuncname, varname1, varname2 ) \
-GENTFUNC3U12( float,    dcomplex, double,   dcomplex, s, z, d, z, tfuncname, varname1, varname2 ) \
-GENTFUNC3U12( float,    dcomplex, scomplex, dcomplex, s, z, c, z, tfuncname, varname1, varname2 ) \
-GENTFUNC3U12( float,    dcomplex, dcomplex, dcomplex, s, z, z, z, tfuncname, varname1, varname2 ) \
-\
-\
-GENTFUNC3U12( double,   float,    float,    double,   d, s, s, d, tfuncname, varname1, varname2 ) \
-GENTFUNC3U12( double,   float,    double,   double,   d, s, d, d, tfuncname, varname1, varname2 ) \
-GENTFUNC3U12( double,   float,    scomplex, double,   d, s, c, d, tfuncname, varname1, varname2 ) \
-GENTFUNC3U12( double,   float,    dcomplex, double,   d, s, z, d, tfuncname, varname1, varname2 ) \
-\
-GENTFUNC3U12( double,   double,   float,    double,   d, d, s, d, tfuncname, varname1, varname2 ) \
-GENTFUNC3U12( double,   double,   scomplex, double,   d, d, c, d, tfuncname, varname1, varname2 ) \
-\
-GENTFUNC3U12( double,   scomplex, float,    dcomplex, d, c, s, z, tfuncname, varname1, varname2 ) \
-GENTFUNC3U12( double,   scomplex, double,   dcomplex, d, c, d, z, tfuncname, varname1, varname2 ) \
-GENTFUNC3U12( double,   scomplex, scomplex, dcomplex, d, c, c, z, tfuncname, varname1, varname2 ) \
-GENTFUNC3U12( double,   scomplex, dcomplex, dcomplex, d, c, z, z, tfuncname, varname1, varname2 ) \
-\
-GENTFUNC3U12( double,   dcomplex, float,    dcomplex, d, z, s, z, tfuncname, varname1, varname2 ) \
-GENTFUNC3U12( double,   dcomplex, scomplex, dcomplex, d, z, c, z, tfuncname, varname1, varname2 ) \
-\
-\
-GENTFUNC3U12( scomplex, float,    double,   scomplex, c, s, d, c, tfuncname, varname1, varname2 ) \
-GENTFUNC3U12( scomplex, float,    dcomplex, scomplex, c, s, z, c, tfuncname, varname1, varname2 ) \
-\
-GENTFUNC3U12( scomplex, double,   float,    dcomplex, c, d, s, z, tfuncname, varname1, varname2 ) \
-GENTFUNC3U12( scomplex, double,   double,   dcomplex, c, d, d, z, tfuncname, varname1, varname2 ) \
-GENTFUNC3U12( scomplex, double,   scomplex, dcomplex, c, d, c, z, tfuncname, varname1, varname2 ) \
-GENTFUNC3U12( scomplex, double,   dcomplex, dcomplex, c, d, z, z, tfuncname, varname1, varname2 ) \
-\
-GENTFUNC3U12( scomplex, scomplex, double,   scomplex, c, c, d, c, tfuncname, varname1, varname2 ) \
-GENTFUNC3U12( scomplex, scomplex, dcomplex, scomplex, c, c, z, c, tfuncname, varname1, varname2 ) \
-\
-GENTFUNC3U12( scomplex, dcomplex, float,    dcomplex, c, z, s, z, tfuncname, varname1, varname2 ) \
-GENTFUNC3U12( scomplex, dcomplex, double,   dcomplex, c, z, d, z, tfuncname, varname1, varname2 ) \
-GENTFUNC3U12( scomplex, dcomplex, scomplex, dcomplex, c, z, c, z, tfuncname, varname1, varname2 ) \
-GENTFUNC3U12( scomplex, dcomplex, dcomplex, dcomplex, c, z, z, z, tfuncname, varname1, varname2 ) \
-\
-\
-GENTFUNC3U12( dcomplex, float,    float,    dcomplex, z, s, s, z, tfuncname, varname1, varname2 ) \
-GENTFUNC3U12( dcomplex, float,    double,   dcomplex, z, s, d, z, tfuncname, varname1, varname2 ) \
-GENTFUNC3U12( dcomplex, float,    scomplex, dcomplex, z, s, c, z, tfuncname, varname1, varname2 ) \
-GENTFUNC3U12( dcomplex, float,    dcomplex, dcomplex, z, s, z, z, tfuncname, varname1, varname2 ) \
-\
-GENTFUNC3U12( dcomplex, double,   float,    dcomplex, z, d, s, z, tfuncname, varname1, varname2 ) \
-GENTFUNC3U12( dcomplex, double,   scomplex, dcomplex, z, d, c, z, tfuncname, varname1, varname2 ) \
-\
-GENTFUNC3U12( dcomplex, scomplex, float,    dcomplex, z, c, s, z, tfuncname, varname1, varname2 ) \
-GENTFUNC3U12( dcomplex, scomplex, double,   dcomplex, z, c, d, z, tfuncname, varname1, varname2 ) \
-GENTFUNC3U12( dcomplex, scomplex, scomplex, dcomplex, z, c, c, z, tfuncname, varname1, varname2 ) \
-GENTFUNC3U12( dcomplex, scomplex, dcomplex, dcomplex, z, c, z, z, tfuncname, varname1, varname2 ) \
-\
-GENTFUNC3U12( dcomplex, dcomplex, float,    dcomplex, z, z, s, z, tfuncname, varname1, varname2 ) \
-GENTFUNC3U12( dcomplex, dcomplex, scomplex, dcomplex, z, z, c, z, tfuncname, varname1, varname2 )
+GENTFUNC3U12( dcomplex, dcomplex, float,    dcomplex, z, z, s, z, __VA_ARGS__ ) \
+GENTFUNC3U12( dcomplex, dcomplex, scomplex, dcomplex, z, z, c, z, __VA_ARGS__ )
 
 
 #endif
@@ -4583,176 +3983,59 @@ GENTPROTSCAL( double,   dcomplex, d, z, blasname )
 
 // -- Basic one-operand macro --
 
-// -- (no auxiliary arguments) --
-
-#define INSERT_GENTPROT_BASIC0( tfuncname ) \
+#define INSERT_GENTPROT_BASIC( ... ) \
 \
-GENTPROT( float,    s, tfuncname ) \
-GENTPROT( double,   d, tfuncname ) \
-GENTPROT( scomplex, c, tfuncname ) \
-GENTPROT( dcomplex, z, tfuncname )
-
-// -- (one auxiliary argument) --
-
-#define INSERT_GENTPROT_BASIC( tfuncname, varname ) \
-\
-GENTPROT( float,    s, tfuncname, varname ) \
-GENTPROT( double,   d, tfuncname, varname ) \
-GENTPROT( scomplex, c, tfuncname, varname ) \
-GENTPROT( dcomplex, z, tfuncname, varname )
-
-// -- (two auxiliary arguments) --
-
-#define INSERT_GENTPROT_BASIC2( tfuncname, varname1, varname2 ) \
-\
-GENTPROT( float,    s, tfuncname, varname1, varname2 ) \
-GENTPROT( double,   d, tfuncname, varname1, varname2 ) \
-GENTPROT( scomplex, c, tfuncname, varname1, varname2 ) \
-GENTPROT( dcomplex, z, tfuncname, varname1, varname2 )
-
-// -- (three auxiliary arguments) --
-
-#define INSERT_GENTPROT_BASIC3( tfuncname, varname1, varname2, varname3 ) \
-\
-GENTPROT( float,    s, tfuncname, varname1, varname2, varname3 ) \
-GENTPROT( double,   d, tfuncname, varname1, varname2, varname3 ) \
-GENTPROT( scomplex, c, tfuncname, varname1, varname2, varname3 ) \
-GENTPROT( dcomplex, z, tfuncname, varname1, varname2, varname3 )
-
-// -- (four auxiliary arguments) --
-
-#define INSERT_GENTPROT_BASIC4( tfuncname, varname1, varname2, varname3, varname4 ) \
-\
-GENTPROT( float,    s, tfuncname, varname1, varname2, varname3, varname4 ) \
-GENTPROT( double,   d, tfuncname, varname1, varname2, varname3, varname4 ) \
-GENTPROT( scomplex, c, tfuncname, varname1, varname2, varname3, varname4 ) \
-GENTPROT( dcomplex, z, tfuncname, varname1, varname2, varname3, varname4 )
+GENTPROT( float,    s, __VA_ARGS__ ) \
+GENTPROT( double,   d, __VA_ARGS__ ) \
+GENTPROT( scomplex, c, __VA_ARGS__ ) \
+GENTPROT( dcomplex, z, __VA_ARGS__ )
 
 
 
 // -- Basic one-operand with real projection --
 
-// -- (no auxiliary arguments) --
-
-#define INSERT_GENTPROTR_BASIC0( tfuncname ) \
+#define INSERT_GENTPROTR_BASIC( ... ) \
 \
-GENTPROTR( float,    float,  s, s, tfuncname ) \
-GENTPROTR( double,   double, d, d, tfuncname ) \
-GENTPROTR( scomplex, float,  c, s, tfuncname ) \
-GENTPROTR( dcomplex, double, z, d, tfuncname )
-
-// -- (one auxiliary argument) --
-
-#define INSERT_GENTPROTR_BASIC( tfuncname, varname ) \
-\
-GENTPROTR( float,    float,  s, s, tfuncname, varname ) \
-GENTPROTR( double,   double, d, d, tfuncname, varname ) \
-GENTPROTR( scomplex, float,  c, s, tfuncname, varname ) \
-GENTPROTR( dcomplex, double, z, d, tfuncname, varname )
-
-// -- (two auxiliary arguments) --
-
-#define INSERT_GENTPROTR_BASIC2( tfuncname, varname1, varname2 ) \
-\
-GENTPROTR( float,    float,  s, s, tfuncname, varname1, varname2 ) \
-GENTPROTR( double,   double, d, d, tfuncname, varname1, varname2 ) \
-GENTPROTR( scomplex, float,  c, s, tfuncname, varname1, varname2 ) \
-GENTPROTR( dcomplex, double, z, d, tfuncname, varname1, varname2 )
-
-// -- (three auxiliary arguments) --
-
-#define INSERT_GENTPROTR_BASIC3( tfuncname, varname1, varname2, varname3  ) \
-\
-GENTPROTR( float,    float,  s, s, tfuncname, varname1, varname2, varname3 ) \
-GENTPROTR( double,   double, d, d, tfuncname, varname1, varname2, varname3 ) \
-GENTPROTR( scomplex, float,  c, s, tfuncname, varname1, varname2, varname3 ) \
-GENTPROTR( dcomplex, double, z, d, tfuncname, varname1, varname2, varname3 )
-
-// -- (four auxiliary arguments) --
-
-#define INSERT_GENTPROTR_BASIC4( tfuncname, varname1, varname2, varname3, varname4  ) \
-\
-GENTPROTR( float,    float,  s, s, tfuncname, varname1, varname2, varname3, varname4 ) \
-GENTPROTR( double,   double, d, d, tfuncname, varname1, varname2, varname3, varname4 ) \
-GENTPROTR( scomplex, float,  c, s, tfuncname, varname1, varname2, varname3, varname4 ) \
-GENTPROTR( dcomplex, double, z, d, tfuncname, varname1, varname2, varname3, varname4 )
+GENTPROTR( float,    float,  s, s, __VA_ARGS__ ) \
+GENTPROTR( double,   double, d, d, __VA_ARGS__ ) \
+GENTPROTR( scomplex, float,  c, s, __VA_ARGS__ ) \
+GENTPROTR( dcomplex, double, z, d, __VA_ARGS__ )
 
 
 
 // -- Basic one-operand macro with complex domain only and real projection --
 
-// -- (no auxiliary arguments) --
-
-#define INSERT_GENTPROTCO_BASIC0( tfuncname ) \
+#define INSERT_GENTPROTCO_BASIC( ... ) \
 \
-GENTPROTCO( scomplex, float,  c, s, tfuncname ) \
-GENTPROTCO( dcomplex, double, z, d, tfuncname )
-
-// -- (one auxiliary argument) --
-
-#define INSERT_GENTPROTCO_BASIC( tfuncname, varname ) \
-\
-GENTPROTCO( scomplex, float,  c, s, tfuncname, varname ) \
-GENTPROTCO( dcomplex, double, z, d, tfuncname, varname )
-
-// -- (two auxiliary arguments) --
-
-#define INSERT_GENTPROTCO_BASIC2( tfuncname, varname1, varname2 ) \
-\
-GENTPROTCO( scomplex, float,  c, s, tfuncname, varname1, varname2 ) \
-GENTPROTCO( dcomplex, double, z, d, tfuncname, varname1, varname2 )
+GENTPROTCO( scomplex, float,  c, s, __VA_ARGS__ ) \
+GENTPROTCO( dcomplex, double, z, d, __VA_ARGS__ )
 
 
 
 // -- Basic one-operand macro with integer instance --
 
-// -- (no auxiliary arguments) --
-
-#define INSERT_GENTPROT_BASIC0_I( funcname ) \
+#define INSERT_GENTPROT_BASIC_I( ... ) \
 \
-GENTPROT( float,    s, funcname ) \
-GENTPROT( double,   d, funcname ) \
-GENTPROT( scomplex, c, funcname ) \
-GENTPROT( dcomplex, z, funcname ) \
-GENTPROT( gint_t,   i, funcname )
-
-// -- (one auxiliary argument) --
-
-#define INSERT_GENTPROT_BASIC_I( tfuncname, varname ) \
-\
-GENTPROT( float,    s, tfuncname, varname ) \
-GENTPROT( double,   d, tfuncname, varname ) \
-GENTPROT( scomplex, c, tfuncname, varname ) \
-GENTPROT( dcomplex, z, tfuncname, varname ) \
-GENTPROT( gint_t,   i, tfuncname, varname )
+GENTPROT( float,    s, __VA_ARGS__ ) \
+GENTPROT( double,   d, __VA_ARGS__ ) \
+GENTPROT( scomplex, c, __VA_ARGS__ ) \
+GENTPROT( dcomplex, z, __VA_ARGS__ ) \
+GENTPROT( gint_t,   i, __VA_ARGS__ )
 
 
 
 // -- Basic one-operand with integer projection --
 
-// -- (no auxiliary arguments) --
-
-#define INSERT_GENTPROTI_BASIC0( funcname ) \
+#define INSERT_GENTPROTI_BASIC( ... ) \
 \
-GENTPROTI( float,    gint_t, s, i, funcname ) \
-GENTPROTI( double,   gint_t, d, i, funcname ) \
-GENTPROTI( scomplex, gint_t, c, i, funcname ) \
-GENTPROTI( dcomplex, gint_t, z, i, funcname )
-
-// -- (one auxiliary argument) --
-
-#define INSERT_GENTPROTI_BASIC( tfuncname, varname ) \
-\
-GENTPROTI( float,    gint_t, s, i, tfuncname, varname ) \
-GENTPROTI( double,   gint_t, d, i, tfuncname, varname ) \
-GENTPROTI( scomplex, gint_t, c, i, tfuncname, varname ) \
-GENTPROTI( dcomplex, gint_t, z, i, tfuncname, varname )
+GENTPROTI( float,    gint_t, s, i, __VA_ARGS__ ) \
+GENTPROTI( double,   gint_t, d, i, __VA_ARGS__ ) \
+GENTPROTI( scomplex, gint_t, c, i, __VA_ARGS__ ) \
+GENTPROTI( dcomplex, gint_t, z, i, __VA_ARGS__ )
 
 
 
 // -- Basic one-operand with real and integer projections --
-
-// -- (no auxiliary arguments) --
 
 #define INSERT_GENTPROTRI_BASIC( funcname ) \
 \
@@ -4769,209 +4052,105 @@ GENTPROTRI( dcomplex, double, gint_t, z, d, i, funcname )
 
 // -- Basic two-operand macro --
 
-// -- (no auxiliary arguments) --
-
-#define INSERT_GENTPROT2_BASIC0( funcname ) \
+#define INSERT_GENTPROT2_BASIC( ... ) \
 \
-GENTPROT2( float,    float,    s, s, funcname ) \
-GENTPROT2( double,   double,   d, d, funcname ) \
-GENTPROT2( scomplex, scomplex, c, c, funcname ) \
-GENTPROT2( dcomplex, dcomplex, z, z, funcname )
-
-// -- (one auxiliary argument) --
-
-#define INSERT_GENTPROT2_BASIC( tfuncname, varname ) \
-\
-GENTPROT2( float,    float,    s, s, tfuncname, varname ) \
-GENTPROT2( double,   double,   d, d, tfuncname, varname ) \
-GENTPROT2( scomplex, scomplex, c, c, tfuncname, varname ) \
-GENTPROT2( dcomplex, dcomplex, z, z, tfuncname, varname )
+GENTPROT2( float,    float,    s, s, __VA_ARGS__ ) \
+GENTPROT2( double,   double,   d, d, __VA_ARGS__ ) \
+GENTPROT2( scomplex, scomplex, c, c, __VA_ARGS__ ) \
+GENTPROT2( dcomplex, dcomplex, z, z, __VA_ARGS__ )
 
 
 
 // -- Mixed domain two-operand macro --
 
-// -- (no auxiliary arguments) --
-
-#define INSERT_GENTPROT2_MIX_D0( funcname ) \
+#define INSERT_GENTPROT2_MIX_D( ... ) \
 \
-GENTPROT2( float,    scomplex, s, c, funcname ) \
-GENTPROT2( scomplex, float,    c, s, funcname ) \
+GENTPROT2( float,    scomplex, s, c, __VA_ARGS__ ) \
+GENTPROT2( scomplex, float,    c, s, __VA_ARGS__ ) \
 \
-GENTPROT2( double,   dcomplex, d, z, funcname ) \
-GENTPROT2( dcomplex, double,   z, d, funcname )
-
-// -- (one auxiliary argument) --
-
-#define INSERT_GENTPROT2_MIX_D( tfuncname, varname ) \
-\
-GENTPROT2( float,    scomplex, s, c, tfuncname, varname ) \
-GENTPROT2( scomplex, float,    c, s, tfuncname, varname ) \
-\
-GENTPROT2( double,   dcomplex, d, z, tfuncname, varname ) \
-GENTPROT2( dcomplex, double,   z, d, tfuncname, varname )
+GENTPROT2( double,   dcomplex, d, z, __VA_ARGS__ ) \
+GENTPROT2( dcomplex, double,   z, d, __VA_ARGS__ )
 
 
 
 // -- Mixed precision two-operand macro --
 
-// -- (no auxiliary arguments) --
-
-#define INSERT_GENTPROT2_MIX_P0( funcname ) \
+#define INSERT_GENTPROT2_MIX_P( ... ) \
 \
-GENTPROT2( float,    double,   s, d, funcname ) \
-GENTPROT2( float,    dcomplex, s, z, funcname ) \
+GENTPROT2( float,    double,   s, d, __VA_ARGS__ ) \
+GENTPROT2( float,    dcomplex, s, z, __VA_ARGS__ ) \
 \
-GENTPROT2( double,   float,    d, s, funcname ) \
-GENTPROT2( double,   scomplex, d, c, funcname ) \
+GENTPROT2( double,   float,    d, s, __VA_ARGS__ ) \
+GENTPROT2( double,   scomplex, d, c, __VA_ARGS__ ) \
 \
-GENTPROT2( scomplex, double,   c, d, funcname ) \
-GENTPROT2( scomplex, dcomplex, c, z, funcname ) \
+GENTPROT2( scomplex, double,   c, d, __VA_ARGS__ ) \
+GENTPROT2( scomplex, dcomplex, c, z, __VA_ARGS__ ) \
 \
-GENTPROT2( dcomplex, float,    z, s, funcname ) \
-GENTPROT2( dcomplex, scomplex, z, c, funcname ) \
-
-// -- (one auxiliary argument) --
-
-#define INSERT_GENTPROT2_MIX_P( tfuncname, varname ) \
-\
-GENTPROT2( float,    double,   s, d, tfuncname, varname ) \
-GENTPROT2( float,    dcomplex, s, z, tfuncname, varname ) \
-\
-GENTPROT2( double,   float,    d, s, tfuncname, varname ) \
-GENTPROT2( double,   scomplex, d, c, tfuncname, varname ) \
-\
-GENTPROT2( scomplex, double,   c, d, tfuncname, varname ) \
-GENTPROT2( scomplex, dcomplex, c, z, tfuncname, varname ) \
-\
-GENTPROT2( dcomplex, float,    z, s, tfuncname, varname ) \
-GENTPROT2( dcomplex, scomplex, z, c, tfuncname, varname ) \
+GENTPROT2( dcomplex, float,    z, s, __VA_ARGS__ ) \
+GENTPROT2( dcomplex, scomplex, z, c, __VA_ARGS__ ) \
 
 
 
 // -- Mixed domain/precision (all) two-operand macro --
 
-// -- (no auxiliary arguments) --
-
-#define INSERT_GENTPROT2_MIXDP0( funcname ) \
+#define INSERT_GENTPROT2_MIX_DP( ... ) \
 \
-GENTPROT2( float,    double,   s, d, funcname ) \
-GENTPROT2( float,    scomplex, s, c, funcname ) \
-GENTPROT2( float,    dcomplex, s, z, funcname ) \
+GENTPROT2( float,    double,   s, d, __VA_ARGS__ ) \
+GENTPROT2( float,    scomplex, s, c, __VA_ARGS__ ) \
+GENTPROT2( float,    dcomplex, s, z, __VA_ARGS__ ) \
 \
-GENTPROT2( double,   float,    d, s, funcname ) \
-GENTPROT2( double,   scomplex, d, c, funcname ) \
-GENTPROT2( double,   dcomplex, d, z, funcname ) \
+GENTPROT2( double,   float,    d, s, __VA_ARGS__ ) \
+GENTPROT2( double,   scomplex, d, c, __VA_ARGS__ ) \
+GENTPROT2( double,   dcomplex, d, z, __VA_ARGS__ ) \
 \
-GENTPROT2( scomplex, float,    c, s, funcname ) \
-GENTPROT2( scomplex, double,   c, d, funcname ) \
-GENTPROT2( scomplex, dcomplex, c, z, funcname ) \
+GENTPROT2( scomplex, float,    c, s, __VA_ARGS__ ) \
+GENTPROT2( scomplex, double,   c, d, __VA_ARGS__ ) \
+GENTPROT2( scomplex, dcomplex, c, z, __VA_ARGS__ ) \
 \
-GENTPROT2( dcomplex, float,    z, s, funcname ) \
-GENTPROT2( dcomplex, double,   z, d, funcname ) \
-GENTPROT2( dcomplex, scomplex, z, c, funcname )
-
-// -- (one auxiliary argument) --
-
-#define INSERT_GENTPROT2_MIX_DP( tfuncname, varname ) \
-\
-GENTPROT2( float,    double,   s, d, tfuncname, varname ) \
-GENTPROT2( float,    scomplex, s, c, tfuncname, varname ) \
-GENTPROT2( float,    dcomplex, s, z, tfuncname, varname ) \
-\
-GENTPROT2( double,   float,    d, s, tfuncname, varname ) \
-GENTPROT2( double,   scomplex, d, c, tfuncname, varname ) \
-GENTPROT2( double,   dcomplex, d, z, tfuncname, varname ) \
-\
-GENTPROT2( scomplex, float,    c, s, tfuncname, varname ) \
-GENTPROT2( scomplex, double,   c, d, tfuncname, varname ) \
-GENTPROT2( scomplex, dcomplex, c, z, tfuncname, varname ) \
-\
-GENTPROT2( dcomplex, float,    z, s, tfuncname, varname ) \
-GENTPROT2( dcomplex, double,   z, d, tfuncname, varname ) \
-GENTPROT2( dcomplex, scomplex, z, c, tfuncname, varname )
+GENTPROT2( dcomplex, float,    z, s, __VA_ARGS__ ) \
+GENTPROT2( dcomplex, double,   z, d, __VA_ARGS__ ) \
+GENTPROT2( dcomplex, scomplex, z, c, __VA_ARGS__ )
 
 
 
 // -- Basic two-operand with real projection of first operand --
 
-// -- (no auxiliary arguments) --
-
-#define INSERT_GENTPROT2R_BASIC0( funcname ) \
+#define INSERT_GENTPROT2R_BASIC( ... ) \
 \
-GENTPROT2R( float,    float,    float,    s, s, s, funcname ) \
-GENTPROT2R( double,   double,   double,   d, d, d, funcname ) \
-GENTPROT2R( scomplex, scomplex, float,    c, c, s, funcname ) \
-GENTPROT2R( dcomplex, dcomplex, double,   z, z, d, funcname )
-
-// -- (one auxiliary argument) --
-
-#define INSERT_GENTPROT2R_BASIC( tfuncname, varname ) \
-\
-GENTPROT2R( float,    float,    float,    s, s, s, tfuncname, varname ) \
-GENTPROT2R( double,   double,   double,   d, d, d, tfuncname, varname ) \
-GENTPROT2R( scomplex, scomplex, float,    c, c, s, tfuncname, varname ) \
-GENTPROT2R( dcomplex, dcomplex, double,   z, z, d, tfuncname, varname )
+GENTPROT2R( float,    float,    float,    s, s, s, __VA_ARGS__ ) \
+GENTPROT2R( double,   double,   double,   d, d, d, __VA_ARGS__ ) \
+GENTPROT2R( scomplex, scomplex, float,    c, c, s, __VA_ARGS__ ) \
+GENTPROT2R( dcomplex, dcomplex, double,   z, z, d, __VA_ARGS__ )
 
 
 
 // -- Mixed domain two-operand with real projection of first operand --
 
-// -- (no auxiliary arguments) --
-
-#define INSERT_GENTPROT2R_MIX_D0( tfuncname ) \
+#define INSERT_GENTPROT2R_MIX_D( ... ) \
 \
-GENTPROT2R( float,    scomplex, float,    s, c, s, tfuncname ) \
-GENTPROT2R( scomplex, float,    float,    c, s, s, tfuncname ) \
+GENTPROT2R( float,    scomplex, float,    s, c, s, __VA_ARGS__ ) \
+GENTPROT2R( scomplex, float,    float,    c, s, s, __VA_ARGS__ ) \
 \
-GENTPROT2R( double,   dcomplex, double,   d, z, d, tfuncname ) \
-GENTPROT2R( dcomplex, double,   double,   z, d, d, tfuncname )
-
-// -- (one auxiliary argument) --
-
-#define INSERT_GENTPROT2R_MIX_D( tfuncname, varname ) \
-\
-GENTPROT2R( float,    scomplex, float,    s, c, s, tfuncname, varname ) \
-GENTPROT2R( scomplex, float,    float,    c, s, s, tfuncname, varname ) \
-\
-GENTPROT2R( double,   dcomplex, double,   d, z, d, tfuncname, varname ) \
-GENTPROT2R( dcomplex, double,   double,   z, d, d, tfuncname, varname )
+GENTPROT2R( double,   dcomplex, double,   d, z, d, __VA_ARGS__ ) \
+GENTPROT2R( dcomplex, double,   double,   z, d, d, __VA_ARGS__ )
 
 
 
 // -- Mixed precision two-operand with real projection of first operand --
 
-// -- (no auxiliary arguments) --
-
-#define INSERT_GENTPROT2R_MIX_P0( tfuncname ) \
+#define INSERT_GENTPROT2R_MIX_P( ... ) \
 \
-GENTPROT2R( float,    double,   float,    s, d, s, tfuncname ) \
-GENTPROT2R( float,    dcomplex, float,    s, z, s, tfuncname ) \
+GENTPROT2R( float,    double,   float,    s, d, s, __VA_ARGS__ ) \
+GENTPROT2R( float,    dcomplex, float,    s, z, s, __VA_ARGS__ ) \
 \
-GENTPROT2R( double,   float,    double,   d, s, d, tfuncname ) \
-GENTPROT2R( double,   scomplex, double,   d, c, d, tfuncname ) \
+GENTPROT2R( double,   float,    double,   d, s, d, __VA_ARGS__ ) \
+GENTPROT2R( double,   scomplex, double,   d, c, d, __VA_ARGS__ ) \
 \
-GENTPROT2R( scomplex, double,   float,    c, d, s, tfuncname ) \
-GENTPROT2R( scomplex, dcomplex, float,    c, z, s, tfuncname ) \
+GENTPROT2R( scomplex, double,   float,    c, d, s, __VA_ARGS__ ) \
+GENTPROT2R( scomplex, dcomplex, float,    c, z, s, __VA_ARGS__ ) \
 \
-GENTPROT2R( dcomplex, float,    double,   z, s, d, tfuncname ) \
-GENTPROT2R( dcomplex, scomplex, double,   z, c, d, tfuncname )
-
-// -- (one auxiliary argument) --
-
-#define INSERT_GENTPROT2R_MIX_P( tfuncname, varname ) \
-\
-GENTPROT2R( float,    double,   float,    s, d, s, tfuncname, varname ) \
-GENTPROT2R( float,    dcomplex, float,    s, z, s, tfuncname, varname ) \
-\
-GENTPROT2R( double,   float,    double,   d, s, d, tfuncname, varname ) \
-GENTPROT2R( double,   scomplex, double,   d, c, d, tfuncname, varname ) \
-\
-GENTPROT2R( scomplex, double,   float,    c, d, s, tfuncname, varname ) \
-GENTPROT2R( scomplex, dcomplex, float,    c, z, s, tfuncname, varname ) \
-\
-GENTPROT2R( dcomplex, float,    double,   z, s, d, tfuncname, varname ) \
-GENTPROT2R( dcomplex, scomplex, double,   z, c, d, tfuncname, varname )
+GENTPROT2R( dcomplex, float,    double,   z, s, d, __VA_ARGS__ ) \
+GENTPROT2R( dcomplex, scomplex, double,   z, c, d, __VA_ARGS__ )
 
 
 
@@ -5371,8 +4550,10 @@ BLIS_INLINE void bli_toggle_bool( bool* b )
 #define BLIS_VA_END  (-1)
 
 
-#endif
+// Static assertion compatible with any version of C/C++
+#define bli_static_assert(cond) while(0){struct s {int STATIC_ASSERT_FAILED : !!(cond);};}
 
+#endif
 // end bli_misc_macro_defs.h
 #line 101 "./frame/include//bli_macro_defs.h"
 
@@ -7078,6 +6259,165 @@ BLIS_INLINE void bli_set_dims_incs_2d
 // end bli_param_macro_defs.h
 #line 103 "./frame/include//bli_macro_defs.h"
 
+// begin bli_complex_macro_defs.h
+#line 1 "./frame/include//bli_complex_macro_defs.h"
+
+/*
+
+   BLIS
+   An object-based framework for developing high-performance BLAS-like
+   libraries.
+
+   Copyright (C) 2014, The University of Texas at Austin
+
+   Redistribution and use in source and binary forms, with or without
+   modification, are permitted provided that the following conditions are
+   met:
+    - Redistributions of source code must retain the above copyright
+      notice, this list of conditions and the following disclaimer.
+    - Redistributions in binary form must reproduce the above copyright
+      notice, this list of conditions and the following disclaimer in the
+      documentation and/or other materials provided with the distribution.
+    - Neither the name(s) of the copyright holder(s) nor the names of its
+      contributors may be used to endorse or promote products derived
+      from this software without specific prior written permission.
+
+   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+   "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+   LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+   A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+   HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+   SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+   LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+   DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+   THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+   (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+   OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+*/
+
+#ifndef BLIS_COMPLEX_MACRO_DEFS_H
+#define BLIS_COMPLEX_MACRO_DEFS_H
+
+
+// -- Real and imaginary accessor macros --
+
+
+#define bli_sreal( x )  ( x )
+#define bli_simag( x )  ( 0.0F )
+#define bli_dreal( x )  ( x )
+#define bli_dimag( x )  ( 0.0 )
+
+
+#if defined(__cplusplus) && defined(BLIS_ENABLE_STD_COMPLEX)
+
+} // extern "C"
+
+// Create functions bli_[cz]{real,imag} for std::complex<T> which mimic those
+// for the simple struct version. Since normally x.real/x.imag are
+// lvalues, we have to create a wrapper since x.real()/x.imag() in std::complex
+// are rvalues. These will only be used if the user has typedef'd scomplex as
+// std::complex<float> and dcomplex as std::complex<double> themselves.
+
+#include <complex> // skipped
+
+template <typename T, bool Imag>
+struct bli_complex_wrapper
+{
+	std::complex<T>& ref;
+
+	bli_complex_wrapper(std::complex<T>& ref) : ref(ref) {}
+
+	operator T() const { return Imag ? ref.imag() : ref.real(); }
+
+	bli_complex_wrapper& operator=(const bli_complex_wrapper& other)
+	{
+		return *this = static_cast<T>( other );
+	}
+
+	bli_complex_wrapper& operator=(T other)
+	{
+		if (Imag)
+			ref.imag(other);
+		else
+			ref.real(other);
+		return *this;
+	}
+};
+
+inline bli_complex_wrapper<float,false> bli_creal( std::complex<float>& x )
+{
+	return x;
+}
+
+inline float bli_creal( const std::complex<float>& x )
+{
+	return x.real();
+}
+
+inline bli_complex_wrapper<float,true> bli_cimag( std::complex<float>& x )
+{
+	return x;
+}
+
+inline float bli_cimag( const std::complex<float>& x )
+{
+	return x.imag();
+}
+
+inline bli_complex_wrapper<double,false> bli_zreal( std::complex<double>& x )
+{
+	return x;
+}
+
+inline double bli_zreal( const std::complex<double>& x )
+{
+	return x.real();
+}
+
+inline bli_complex_wrapper<double,true> bli_zimag( std::complex<double>& x )
+{
+	return x;
+}
+
+inline double bli_zimag( const std::complex<double>& x )
+{
+	return x.imag();
+}
+
+#define __typeof__(x) auto
+
+extern "C"
+{
+
+#elif !defined(BLIS_ENABLE_C99_COMPLEX)
+
+
+#define bli_creal( x )  ( (x).real )
+#define bli_cimag( x )  ( (x).imag )
+#define bli_zreal( x )  ( (x).real )
+#define bli_zimag( x )  ( (x).imag )
+
+
+#else // ifdef BLIS_ENABLE_C99_COMPLEX
+
+// Note that these definitions probably don't work because of constructs
+// like `bli_zreal( x ) = yr`.
+
+#define bli_creal( x )  ( crealf(x) )
+#define bli_cimag( x )  ( cimagf(x) )
+#define bli_zreal( x )  ( creal(x) )
+#define bli_zimag( x )  ( cimag(x) )
+
+
+#endif // BLIS_ENABLE_C99_COMPLEX
+
+
+#endif
+
+// end bli_complex_macro_defs.h
+#line 104 "./frame/include//bli_macro_defs.h"
+
 // begin bli_obj_macro_defs.h
 #line 1 "./frame/include//bli_obj_macro_defs.h"
 
@@ -8346,10 +7686,10 @@ BLIS_INLINE void bli_obj_init_finish( num_t dt, dim_t m, dim_t n, void* p, inc_t
 	bli_obj_set_scalar_dt( dt, obj );
 	void* s = bli_obj_internal_scalar_buffer( obj );
 
-	if      ( bli_dt_prec_is_single( dt ) ) { (( scomplex* )s)->real = 1.0F;
-	                                          (( scomplex* )s)->imag = 0.0F; }
-	else if ( bli_dt_prec_is_double( dt ) ) { (( dcomplex* )s)->real = 1.0;
-	                                          (( dcomplex* )s)->imag = 0.0; }
+	if      ( bli_dt_prec_is_single( dt ) ) { bli_creal( *( scomplex* )s ) = 1.0F;
+	                                          bli_cimag( *( scomplex* )s ) = 0.0F; }
+	else if ( bli_dt_prec_is_double( dt ) ) { bli_zreal( *( dcomplex* )s ) = 1.0;
+	                                          bli_zimag( *( dcomplex* )s ) = 0.0; }
 }
 
 // Finish the initialization started by the 1x1-specific static initializer
@@ -8681,82 +8021,6 @@ BLIS_INLINE void bli_obj_reflect_about_diag( obj_t* obj )
 
 #endif
 // end bli_obj_macro_defs.h
-#line 104 "./frame/include//bli_macro_defs.h"
-
-// begin bli_complex_macro_defs.h
-#line 1 "./frame/include//bli_complex_macro_defs.h"
-
-/*
-
-   BLIS
-   An object-based framework for developing high-performance BLAS-like
-   libraries.
-
-   Copyright (C) 2014, The University of Texas at Austin
-
-   Redistribution and use in source and binary forms, with or without
-   modification, are permitted provided that the following conditions are
-   met:
-    - Redistributions of source code must retain the above copyright
-      notice, this list of conditions and the following disclaimer.
-    - Redistributions in binary form must reproduce the above copyright
-      notice, this list of conditions and the following disclaimer in the
-      documentation and/or other materials provided with the distribution.
-    - Neither the name(s) of the copyright holder(s) nor the names of its
-      contributors may be used to endorse or promote products derived
-      from this software without specific prior written permission.
-
-   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-   "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-   LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-   A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
-   HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
-   SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
-   LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
-   DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
-   THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-   (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-   OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-
-*/
-
-#ifndef BLIS_COMPLEX_MACRO_DEFS_H
-#define BLIS_COMPLEX_MACRO_DEFS_H
-
-
-// -- Real and imaginary accessor macros --
-
-
-#define bli_sreal( x )  ( x )
-#define bli_simag( x )  ( 0.0F )
-#define bli_dreal( x )  ( x )
-#define bli_dimag( x )  ( 0.0 )
-
-
-#ifndef BLIS_ENABLE_C99_COMPLEX
-
-
-#define bli_creal( x )  ( (x).real )
-#define bli_cimag( x )  ( (x).imag )
-#define bli_zreal( x )  ( (x).real )
-#define bli_zimag( x )  ( (x).imag )
-
-
-#else // ifdef BLIS_ENABLE_C99_COMPLEX
-
-
-#define bli_creal( x )  ( crealf(x) )
-#define bli_cimag( x )  ( cimagf(x) )
-#define bli_zreal( x )  ( creal(x) )
-#define bli_zimag( x )  ( cimag(x) )
-
-
-#endif // BLIS_ENABLE_C99_COMPLEX
-
-
-#endif
-
-// end bli_complex_macro_defs.h
 #line 105 "./frame/include//bli_macro_defs.h"
 
 // begin bli_scalar_macro_defs.h
@@ -19071,7 +18335,7 @@ BLIS_INLINE void PASTEMAC(ch,op) \
 	} \
 }
 
-INSERT_GENTFUNC_BASIC0(set0s_edge)
+INSERT_GENTFUNC_BASIC(set0s_edge)
 
 #endif
 // end bli_set0s_edge.h
@@ -19182,7 +18446,7 @@ BLIS_INLINE void PASTEMAC(ch,opname) \
 	PASTEMAC2(ch,ch,opname)( m, n, x, rs_x, cs_x, y, rs_y, cs_y ); \
 }
 
-INSERT_GENTFUNC_BASIC0( copys_mxn )
+INSERT_GENTFUNC_BASIC( copys_mxn )
 
 
 
@@ -19848,7 +19112,7 @@ BLIS_INLINE void PASTEMAC(ch,opname) \
 	} \
 }
 
-INSERT_GENTFUNC_BASIC0( scal2s_mxn )
+INSERT_GENTFUNC_BASIC( scal2s_mxn )
 
 #endif
 // end bli_scal2s_mxn.h
@@ -19979,7 +19243,7 @@ BLIS_INLINE void PASTEMAC(ch,opname) \
     PASTEMAC3(ch,ch,ch,opname)( m, n, x, rs_x, cs_x, beta, y, rs_y, cs_y ); \
 }
 
-INSERT_GENTFUNC_BASIC0( xpbys_mxn )
+INSERT_GENTFUNC_BASIC( xpbys_mxn )
 
 
 
@@ -21073,7 +20337,7 @@ BLIS_INLINE void PASTEMAC(ch,opname) \
 	} \
 }
 
-INSERT_GENTFUNC_BASIC0( bcastbbs_mxn )
+INSERT_GENTFUNC_BASIC( bcastbbs_mxn )
 
 #endif
 // end bli_bcastbbs_mxn.h
@@ -21186,7 +20450,7 @@ BLIS_INLINE void PASTEMAC(ch,opname) \
 	} \
 }
 
-INSERT_GENTFUNCRO_BASIC0( scal2bbs_mxn )
+INSERT_GENTFUNCRO_BASIC( scal2bbs_mxn )
 
 
 #undef  GENTFUNCCO
@@ -21283,7 +20547,7 @@ BLIS_INLINE void PASTEMAC(ch,opname) \
 	} \
 }
 
-INSERT_GENTFUNCCO_BASIC0( scal2bbs_mxn )
+INSERT_GENTFUNCCO( scal2bbs_mxn )
 
 #endif
 // end bli_scal2bbs_mxn.h
@@ -21363,7 +20627,7 @@ BLIS_INLINE void PASTEMAC(ch,opname) \
 	} \
 }
 
-INSERT_GENTFUNC_BASIC0( set0bbs_mxn )
+INSERT_GENTFUNC_BASIC( set0bbs_mxn )
 
 #endif
 // end bli_set0bbs_mxn.h
@@ -21774,68 +21038,68 @@ INSERT_GENTFUNC_BASIC0( set0bbs_mxn )
 #define bli_sdcscal21es( a, x, yri, yir ) { ( void )a; ( void )x; ( void )yri; ( void )yir; }
 #define bli_sccscal21es( a, x, yri, yir ) \
 { \
-	bli_cxscal2ris( bli_sreal(a), bli_simag(a),  bli_creal(x), bli_cimag(x), bli_zreal(yri), bli_zimag(yri) ); \
-	bli_cxscal2ris( bli_sreal(a), bli_simag(a), -bli_cimag(x), bli_creal(x), bli_zreal(yir), bli_zimag(yir) ); \
+	bli_cxscal2ris( bli_sreal(a), bli_simag(a),  bli_creal(x), bli_cimag(x), bli_creal(yri), bli_cimag(yri) ); \
+	bli_cxscal2ris( bli_sreal(a), bli_simag(a), -bli_cimag(x), bli_creal(x), bli_creal(yir), bli_cimag(yir) ); \
 }
 #define bli_szcscal21es( a, x, yri, yir ) \
 { \
-	bli_cxscal2ris( bli_sreal(a), bli_simag(a),  bli_zreal(x), bli_zimag(x), bli_zreal(yri), bli_zimag(yri) ); \
-	bli_cxscal2ris( bli_sreal(a), bli_simag(a), -bli_zimag(x), bli_zreal(x), bli_zreal(yir), bli_zimag(yir) ); \
+	bli_cxscal2ris( bli_sreal(a), bli_simag(a),  bli_zreal(x), bli_zimag(x), bli_creal(yri), bli_cimag(yri) ); \
+	bli_cxscal2ris( bli_sreal(a), bli_simag(a), -bli_zimag(x), bli_zreal(x), bli_creal(yir), bli_cimag(yir) ); \
 }
 
 #define bli_dscscal21es( a, x, yri, yir ) { ( void )a; ( void )x; ( void )yri; ( void )yir; }
 #define bli_ddcscal21es( a, x, yri, yir ) { ( void )a; ( void )x; ( void )yri; ( void )yir; }
 #define bli_dccscal21es( a, x, yri, yir ) \
 { \
-	bli_cxscal2ris( bli_dreal(a), bli_dimag(a),  bli_creal(x), bli_cimag(x), bli_zreal(yri), bli_zimag(yri) ); \
-	bli_cxscal2ris( bli_dreal(a), bli_dimag(a), -bli_cimag(x), bli_creal(x), bli_zreal(yir), bli_zimag(yir) ); \
+	bli_cxscal2ris( bli_dreal(a), bli_dimag(a),  bli_creal(x), bli_cimag(x), bli_creal(yri), bli_cimag(yri) ); \
+	bli_cxscal2ris( bli_dreal(a), bli_dimag(a), -bli_cimag(x), bli_creal(x), bli_creal(yir), bli_cimag(yir) ); \
 }
 #define bli_dzcscal21es( a, x, yri, yir ) \
 { \
-	bli_cxscal2ris( bli_dreal(a), bli_dimag(a),  bli_zreal(x), bli_zimag(x), bli_zreal(yri), bli_zimag(yri) ); \
-	bli_cxscal2ris( bli_dreal(a), bli_dimag(a), -bli_zimag(x), bli_zreal(x), bli_zreal(yir), bli_zimag(yir) ); \
+	bli_cxscal2ris( bli_dreal(a), bli_dimag(a),  bli_zreal(x), bli_zimag(x), bli_creal(yri), bli_cimag(yri) ); \
+	bli_cxscal2ris( bli_dreal(a), bli_dimag(a), -bli_zimag(x), bli_zreal(x), bli_creal(yir), bli_cimag(yir) ); \
 }
 
 #define bli_cscscal21es( a, x, yri, yir ) \
 { \
-	bli_cxscal2ris( bli_creal(a), bli_cimag(a),  bli_sreal(x), bli_simag(x), bli_zreal(yri), bli_zimag(yri) ); \
-	bli_cxscal2ris( bli_creal(a), bli_cimag(a), -bli_simag(x), bli_sreal(x), bli_zreal(yir), bli_zimag(yir) ); \
+	bli_cxscal2ris( bli_creal(a), bli_cimag(a),  bli_sreal(x), bli_simag(x), bli_creal(yri), bli_cimag(yri) ); \
+	bli_cxscal2ris( bli_creal(a), bli_cimag(a), -bli_simag(x), bli_sreal(x), bli_creal(yir), bli_cimag(yir) ); \
 }
 #define bli_cdcscal21es( a, x, yri, yir ) \
 { \
-	bli_cxscal2ris( bli_creal(a), bli_cimag(a),  bli_dreal(x), bli_dimag(x), bli_zreal(yri), bli_zimag(yri) ); \
-	bli_cxscal2ris( bli_creal(a), bli_cimag(a), -bli_dimag(x), bli_dreal(x), bli_zreal(yir), bli_zimag(yir) ); \
+	bli_cxscal2ris( bli_creal(a), bli_cimag(a),  bli_dreal(x), bli_dimag(x), bli_creal(yri), bli_cimag(yri) ); \
+	bli_cxscal2ris( bli_creal(a), bli_cimag(a), -bli_dimag(x), bli_dreal(x), bli_creal(yir), bli_cimag(yir) ); \
 }
 #define bli_cccscal21es( a, x, yri, yir ) \
 { \
-	bli_cxscal2ris( bli_creal(a), bli_cimag(a),  bli_creal(x), bli_cimag(x), bli_zreal(yri), bli_zimag(yri) ); \
-	bli_cxscal2ris( bli_creal(a), bli_cimag(a), -bli_cimag(x), bli_creal(x), bli_zreal(yir), bli_zimag(yir) ); \
+	bli_cxscal2ris( bli_creal(a), bli_cimag(a),  bli_creal(x), bli_cimag(x), bli_creal(yri), bli_cimag(yri) ); \
+	bli_cxscal2ris( bli_creal(a), bli_cimag(a), -bli_cimag(x), bli_creal(x), bli_creal(yir), bli_cimag(yir) ); \
 }
 #define bli_czcscal21es( a, x, yri, yir ) \
 { \
-	bli_cxscal2ris( bli_creal(a), bli_cimag(a),  bli_zreal(x), bli_zimag(x), bli_zreal(yri), bli_zimag(yri) ); \
-	bli_cxscal2ris( bli_creal(a), bli_cimag(a), -bli_zimag(x), bli_zreal(x), bli_zreal(yir), bli_zimag(yir) ); \
+	bli_cxscal2ris( bli_creal(a), bli_cimag(a),  bli_zreal(x), bli_zimag(x), bli_creal(yri), bli_cimag(yri) ); \
+	bli_cxscal2ris( bli_creal(a), bli_cimag(a), -bli_zimag(x), bli_zreal(x), bli_creal(yir), bli_cimag(yir) ); \
 }
 
 #define bli_zscscal21es( a, x, yri, yir ) \
 { \
-	bli_cxscal2ris( bli_zreal(a), bli_zimag(a),  bli_sreal(x), bli_simag(x), bli_zreal(yri), bli_zimag(yri) ); \
-	bli_cxscal2ris( bli_zreal(a), bli_zimag(a), -bli_simag(x), bli_sreal(x), bli_zreal(yir), bli_zimag(yir) ); \
+	bli_cxscal2ris( bli_zreal(a), bli_zimag(a),  bli_sreal(x), bli_simag(x), bli_creal(yri), bli_cimag(yri) ); \
+	bli_cxscal2ris( bli_zreal(a), bli_zimag(a), -bli_simag(x), bli_sreal(x), bli_creal(yir), bli_cimag(yir) ); \
 }
 #define bli_zdcscal21es( a, x, yri, yir ) \
 { \
-	bli_cxscal2ris( bli_zreal(a), bli_zimag(a),  bli_dreal(x), bli_dimag(x), bli_zreal(yri), bli_zimag(yri) ); \
-	bli_cxscal2ris( bli_zreal(a), bli_zimag(a), -bli_dimag(x), bli_dreal(x), bli_zreal(yir), bli_zimag(yir) ); \
+	bli_cxscal2ris( bli_zreal(a), bli_zimag(a),  bli_dreal(x), bli_dimag(x), bli_creal(yri), bli_cimag(yri) ); \
+	bli_cxscal2ris( bli_zreal(a), bli_zimag(a), -bli_dimag(x), bli_dreal(x), bli_creal(yir), bli_cimag(yir) ); \
 }
 #define bli_zccscal21es( a, x, yri, yir ) \
 { \
-	bli_cxscal2ris( bli_zreal(a), bli_zimag(a),  bli_creal(x), bli_cimag(x), bli_zreal(yri), bli_zimag(yri) ); \
-	bli_cxscal2ris( bli_zreal(a), bli_zimag(a), -bli_cimag(x), bli_creal(x), bli_zreal(yir), bli_zimag(yir) ); \
+	bli_cxscal2ris( bli_zreal(a), bli_zimag(a),  bli_creal(x), bli_cimag(x), bli_creal(yri), bli_cimag(yri) ); \
+	bli_cxscal2ris( bli_zreal(a), bli_zimag(a), -bli_cimag(x), bli_creal(x), bli_creal(yir), bli_cimag(yir) ); \
 }
 #define bli_zzcscal21es( a, x, yri, yir ) \
 { \
-	bli_cxscal2ris( bli_zreal(a), bli_zimag(a),  bli_zreal(x), bli_zimag(x), bli_zreal(yri), bli_zimag(yri) ); \
-	bli_cxscal2ris( bli_zreal(a), bli_zimag(a), -bli_zimag(x), bli_zreal(x), bli_zreal(yir), bli_zimag(yir) ); \
+	bli_cxscal2ris( bli_zreal(a), bli_zimag(a),  bli_zreal(x), bli_zimag(x), bli_creal(yri), bli_cimag(yri) ); \
+	bli_cxscal2ris( bli_zreal(a), bli_zimag(a), -bli_zimag(x), bli_zreal(x), bli_creal(yir), bli_cimag(yir) ); \
 }
 
 // -- (axy) = (??z) ------------------------------------------------------------
@@ -22015,68 +21279,68 @@ INSERT_GENTFUNC_BASIC0( set0bbs_mxn )
 #define bli_sdcscal2j1es( a, x, yri, yir ) { ( void )a; ( void )x; ( void )yri; ( void )yir; }
 #define bli_sccscal2j1es( a, x, yri, yir ) \
 { \
-	bli_cxscal2ris( bli_sreal(a), bli_simag(a), bli_creal(x), -bli_cimag(x), bli_zreal(yri), bli_zimag(yri) ); \
-	bli_cxscal2ris( bli_sreal(a), bli_simag(a), bli_cimag(x),  bli_creal(x), bli_zreal(yir), bli_zimag(yir) ); \
+	bli_cxscal2ris( bli_sreal(a), bli_simag(a), bli_creal(x), -bli_cimag(x), bli_creal(yri), bli_cimag(yri) ); \
+	bli_cxscal2ris( bli_sreal(a), bli_simag(a), bli_cimag(x),  bli_creal(x), bli_creal(yir), bli_cimag(yir) ); \
 }
 #define bli_szcscal2j1es( a, x, yri, yir ) \
 { \
-	bli_cxscal2ris( bli_sreal(a), bli_simag(a), bli_zreal(x), -bli_zimag(x), bli_zreal(yri), bli_zimag(yri) ); \
-	bli_cxscal2ris( bli_sreal(a), bli_simag(a), bli_zimag(x),  bli_zreal(x), bli_zreal(yir), bli_zimag(yir) ); \
+	bli_cxscal2ris( bli_sreal(a), bli_simag(a), bli_zreal(x), -bli_zimag(x), bli_creal(yri), bli_cimag(yri) ); \
+	bli_cxscal2ris( bli_sreal(a), bli_simag(a), bli_zimag(x),  bli_zreal(x), bli_creal(yir), bli_cimag(yir) ); \
 }
 
 #define bli_dscscal2j1es( a, x, yri, yir ) { ( void )a; ( void )x; ( void )yri; ( void )yir; }
 #define bli_ddcscal2j1es( a, x, yri, yir ) { ( void )a; ( void )x; ( void )yri; ( void )yir; }
 #define bli_dccscal2j1es( a, x, yri, yir ) \
 { \
-	bli_cxscal2ris( bli_dreal(a), bli_dimag(a), bli_creal(x), -bli_cimag(x), bli_zreal(yri), bli_zimag(yri) ); \
-	bli_cxscal2ris( bli_dreal(a), bli_dimag(a), bli_cimag(x),  bli_creal(x), bli_zreal(yir), bli_zimag(yir) ); \
+	bli_cxscal2ris( bli_dreal(a), bli_dimag(a), bli_creal(x), -bli_cimag(x), bli_creal(yri), bli_cimag(yri) ); \
+	bli_cxscal2ris( bli_dreal(a), bli_dimag(a), bli_cimag(x),  bli_creal(x), bli_creal(yir), bli_cimag(yir) ); \
 }
 #define bli_dzcscal2j1es( a, x, yri, yir ) \
 { \
-	bli_cxscal2ris( bli_dreal(a), bli_dimag(a), bli_zreal(x), -bli_zimag(x), bli_zreal(yri), bli_zimag(yri) ); \
-	bli_cxscal2ris( bli_dreal(a), bli_dimag(a), bli_zimag(x),  bli_zreal(x), bli_zreal(yir), bli_zimag(yir) ); \
+	bli_cxscal2ris( bli_dreal(a), bli_dimag(a), bli_zreal(x), -bli_zimag(x), bli_creal(yri), bli_cimag(yri) ); \
+	bli_cxscal2ris( bli_dreal(a), bli_dimag(a), bli_zimag(x),  bli_zreal(x), bli_creal(yir), bli_cimag(yir) ); \
 }
 
 #define bli_cscscal2j1es( a, x, yri, yir ) \
 { \
-	bli_cxscal2ris( bli_creal(a), bli_cimag(a), bli_sreal(x), -bli_simag(x), bli_zreal(yri), bli_zimag(yri) ); \
-	bli_cxscal2ris( bli_creal(a), bli_cimag(a), bli_simag(x),  bli_sreal(x), bli_zreal(yir), bli_zimag(yir) ); \
+	bli_cxscal2ris( bli_creal(a), bli_cimag(a), bli_sreal(x), -bli_simag(x), bli_creal(yri), bli_cimag(yri) ); \
+	bli_cxscal2ris( bli_creal(a), bli_cimag(a), bli_simag(x),  bli_sreal(x), bli_creal(yir), bli_zimag(yir) ); \
 }
 #define bli_cdcscal2j1es( a, x, yri, yir ) \
 { \
-	bli_cxscal2ris( bli_creal(a), bli_cimag(a), bli_dreal(x), -bli_dimag(x), bli_zreal(yri), bli_zimag(yri) ); \
-	bli_cxscal2ris( bli_creal(a), bli_cimag(a), bli_dimag(x),  bli_dreal(x), bli_zreal(yir), bli_zimag(yir) ); \
+	bli_cxscal2ris( bli_creal(a), bli_cimag(a), bli_dreal(x), -bli_dimag(x), bli_creal(yri), bli_cimag(yri) ); \
+	bli_cxscal2ris( bli_creal(a), bli_cimag(a), bli_dimag(x),  bli_dreal(x), bli_creal(yir), bli_cimag(yir) ); \
 }
 #define bli_cccscal2j1es( a, x, yri, yir ) \
 { \
-	bli_cxscal2ris( bli_creal(a), bli_cimag(a), bli_creal(x), -bli_cimag(x), bli_zreal(yri), bli_zimag(yri) ); \
-	bli_cxscal2ris( bli_creal(a), bli_cimag(a), bli_cimag(x),  bli_creal(x), bli_zreal(yir), bli_zimag(yir) ); \
+	bli_cxscal2ris( bli_creal(a), bli_cimag(a), bli_creal(x), -bli_cimag(x), bli_creal(yri), bli_cimag(yri) ); \
+	bli_cxscal2ris( bli_creal(a), bli_cimag(a), bli_cimag(x),  bli_creal(x), bli_creal(yir), bli_cimag(yir) ); \
 }
 #define bli_czcscal2j1es( a, x, yri, yir ) \
 { \
-	bli_cxscal2ris( bli_creal(a), bli_cimag(a), bli_zreal(x), -bli_zimag(x), bli_zreal(yri), bli_zimag(yri) ); \
-	bli_cxscal2ris( bli_creal(a), bli_cimag(a), bli_zimag(x),  bli_zreal(x), bli_zreal(yir), bli_zimag(yir) ); \
+	bli_cxscal2ris( bli_creal(a), bli_cimag(a), bli_zreal(x), -bli_zimag(x), bli_creal(yri), bli_cimag(yri) ); \
+	bli_cxscal2ris( bli_creal(a), bli_cimag(a), bli_zimag(x),  bli_zreal(x), bli_creal(yir), bli_cimag(yir) ); \
 }
 
 #define bli_zscscal2j1es( a, x, yri, yir ) \
 { \
-	bli_cxscal2ris( bli_zreal(a), bli_zimag(a), bli_sreal(x), -bli_simag(x), bli_zreal(yri), bli_zimag(yri) ); \
-	bli_cxscal2ris( bli_zreal(a), bli_zimag(a), bli_simag(x),  bli_sreal(x), bli_zreal(yir), bli_zimag(yir) ); \
+	bli_cxscal2ris( bli_zreal(a), bli_zimag(a), bli_sreal(x), -bli_simag(x), bli_creal(yri), bli_cimag(yri) ); \
+	bli_cxscal2ris( bli_zreal(a), bli_zimag(a), bli_simag(x),  bli_sreal(x), bli_creal(yir), bli_cimag(yir) ); \
 }
 #define bli_zdcscal2j1es( a, x, yri, yir ) \
 { \
-	bli_cxscal2ris( bli_zreal(a), bli_zimag(a), bli_dreal(x), -bli_dimag(x), bli_zreal(yri), bli_zimag(yri) ); \
-	bli_cxscal2ris( bli_zreal(a), bli_zimag(a), bli_dimag(x),  bli_dreal(x), bli_zreal(yir), bli_zimag(yir) ); \
+	bli_cxscal2ris( bli_zreal(a), bli_zimag(a), bli_dreal(x), -bli_dimag(x), bli_creal(yri), bli_cimag(yri) ); \
+	bli_cxscal2ris( bli_zreal(a), bli_zimag(a), bli_dimag(x),  bli_dreal(x), bli_creal(yir), bli_cimag(yir) ); \
 }
 #define bli_zccscal2j1es( a, x, yri, yir ) \
 { \
-	bli_cxscal2ris( bli_zreal(a), bli_zimag(a), bli_creal(x), -bli_cimag(x), bli_zreal(yri), bli_zimag(yri) ); \
-	bli_cxscal2ris( bli_zreal(a), bli_zimag(a), bli_cimag(x),  bli_creal(x), bli_zreal(yir), bli_zimag(yir) ); \
+	bli_cxscal2ris( bli_zreal(a), bli_zimag(a), bli_creal(x), -bli_cimag(x), bli_creal(yri), bli_cimag(yri) ); \
+	bli_cxscal2ris( bli_zreal(a), bli_zimag(a), bli_cimag(x),  bli_creal(x), bli_creal(yir), bli_cimag(yir) ); \
 }
 #define bli_zzcscal2j1es( a, x, yri, yir ) \
 { \
-	bli_cxscal2ris( bli_zreal(a), bli_zimag(a), bli_zreal(x), -bli_zimag(x), bli_zreal(yri), bli_zimag(yri) ); \
-	bli_cxscal2ris( bli_zreal(a), bli_zimag(a), bli_zimag(x),  bli_zreal(x), bli_zreal(yir), bli_zimag(yir) ); \
+	bli_cxscal2ris( bli_zreal(a), bli_zimag(a), bli_zreal(x), -bli_zimag(x), bli_creal(yri), bli_cimag(yri) ); \
+	bli_cxscal2ris( bli_zreal(a), bli_zimag(a), bli_zimag(x),  bli_zreal(x), bli_creal(yir), bli_cimag(yir) ); \
 }
 
 // -- (axy) = (??z) ------------------------------------------------------------
@@ -24501,6 +23765,1928 @@ BLIS_INLINE void bli_zset1ms_mxn
 
 
 
+// -- BLIS architecture/kernel definitions --
+
+// begin bli_pre_ker_params.h
+#line 1 "./frame/include//bli_pre_ker_params.h"
+
+/*
+
+   BLIS
+   An object-based framework for developing high-performance BLAS-like
+   libraries.
+
+   Copyright (C) 2023, The University of Texas at Austin
+
+   Redistribution and use in source and binary forms, with or without
+   modification, are permitted provided that the following conditions are
+   met:
+    - Redistributions of source code must retain the above copyright
+      notice, this list of conditions and the following disclaimer.
+    - Redistributions in binary form must reproduce the above copyright
+      notice, this list of conditions and the following disclaimer in the
+      documentation and/or other materials provided with the distribution.
+    - Neither the name(s) of the copyright holder(s) nor the names of its
+      contributors may be used to endorse or promote products derived
+      from this software without specific prior written permission.
+
+   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+   "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+   LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+   A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+   HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+   SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+   LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+   DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+   THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+   (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+   OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+*/
+
+#ifndef BLIS_PRE_KER_PARAMS_H
+#define BLIS_PRE_KER_PARAMS_H
+
+// These macros are used in bli_*_ker_prot.h and bli_*_ker_ft.h to make it
+// easy to update them in the future, if needed.
+
+#define BLIS_AUXINFO_PARAM        auxinfo_t* data
+#define BLIS_CNTX_PARAM     const cntx_t*    cntx
+
+
+#endif
+// end bli_pre_ker_params.h
+#line 86 "./frame/include/blis.h"
+
+// begin bli_l1v_ker_params.h
+#line 1 "./frame/1//bli_l1v_ker_params.h"
+
+/*
+
+   BLIS
+   An object-based framework for developing high-performance BLAS-like
+   libraries.
+
+   Copyright (C) 2014, The University of Texas at Austin
+
+   Redistribution and use in source and binary forms, with or without
+   modification, are permitted provided that the following conditions are
+   met:
+    - Redistributions of source code must retain the above copyright
+      notice, this list of conditions and the following disclaimer.
+    - Redistributions in binary form must reproduce the above copyright
+      notice, this list of conditions and the following disclaimer in the
+      documentation and/or other materials provided with the distribution.
+    - Neither the name(s) of the copyright holder(s) nor the names of its
+      contributors may be used to endorse or promote products derived
+      from this software without specific prior written permission.
+
+   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+   "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+   LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+   A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+   HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+   SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+   LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+   DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+   THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+   (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+   OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+*/
+
+#ifndef BLIS_L1V_KER_PARAMS_H
+#define BLIS_L1V_KER_PARAMS_H
+
+
+#define addv_params \
+\
+             conj_t  conjx, \
+             dim_t   n, \
+       const void*   x, inc_t incx, \
+             void*   y, inc_t incy
+
+#define amaxv_params \
+\
+             dim_t   n, \
+       const void*   x, inc_t incx, \
+             dim_t*  index
+
+#define axpbyv_params \
+\
+             conj_t  conjx, \
+             dim_t   n, \
+       const void*   alpha, \
+       const void*   x, inc_t incx, \
+       const void*   beta, \
+             void*   y, inc_t incy
+
+#define axpyv_params \
+\
+             conj_t  conjx, \
+             dim_t   n, \
+       const void*   alpha, \
+       const void*   x, inc_t incx, \
+             void*   y, inc_t incy
+
+#define copyv_params \
+\
+             conj_t  conjx, \
+             dim_t   n, \
+       const void*   x, inc_t incx, \
+             void*   y, inc_t incy
+
+#define dotv_params \
+\
+             conj_t  conjx, \
+             conj_t  conjy, \
+             dim_t   n, \
+       const void*   x, inc_t incx, \
+       const void*   y, inc_t incy, \
+             void*   rho
+
+#define dotxv_params \
+\
+             conj_t  conjx, \
+             conj_t  conjy, \
+             dim_t   n, \
+       const void*   alpha, \
+       const void*   x, inc_t incx, \
+       const void*   y, inc_t incy, \
+       const void*   beta, \
+             void*   rho
+
+#define invertv_params \
+\
+             dim_t   n, \
+             void*   x, inc_t incx
+
+#define invscalv_params \
+\
+             conj_t  conjalpha, \
+             dim_t   n, \
+       const void*   alpha, \
+             void*   x, inc_t incx
+
+#define scalv_params \
+\
+             conj_t  conjalpha, \
+             dim_t   n, \
+       const void*   alpha, \
+             void*   x, inc_t incx
+
+#define scal2v_params \
+\
+             conj_t  conjx, \
+             dim_t   n, \
+       const void*   alpha, \
+       const void*   x, inc_t incx, \
+             void*   y, inc_t incy
+
+#define setv_params \
+\
+             conj_t  conjalpha, \
+             dim_t   n, \
+       const void*   alpha, \
+             void*   x, inc_t incx
+
+#define subv_params \
+\
+             conj_t  conjx, \
+             dim_t   n, \
+       const void*   x, inc_t incx, \
+             void*   y, inc_t incy
+
+#define swapv_params \
+\
+             dim_t   n, \
+             void*   x, inc_t incx, \
+             void*   y, inc_t incy
+
+#define xpbyv_params \
+\
+             conj_t  conjx, \
+             dim_t   n, \
+       const void*   x, inc_t incx, \
+       const void*   beta, \
+             void*   y, inc_t incy
+
+#endif
+
+// end bli_l1v_ker_params.h
+#line 87 "./frame/include/blis.h"
+
+// begin bli_l1f_ker_params.h
+#line 1 "./frame/1f//bli_l1f_ker_params.h"
+
+/*
+
+   BLIS
+   An object-based framework for developing high-performance BLAS-like
+   libraries.
+
+   Copyright (C) 2014, The University of Texas at Austin
+
+   Redistribution and use in source and binary forms, with or without
+   modification, are permitted provided that the following conditions are
+   met:
+    - Redistributions of source code must retain the above copyright
+      notice, this list of conditions and the following disclaimer.
+    - Redistributions in binary form must reproduce the above copyright
+      notice, this list of conditions and the following disclaimer in the
+      documentation and/or other materials provided with the distribution.
+    - Neither the name(s) of the copyright holder(s) nor the names of its
+      contributors may be used to endorse or promote products derived
+      from this software without specific prior written permission.
+
+   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+   "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+   LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+   A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+   HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+   SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+   LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+   DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+   THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+   (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+   OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+*/
+
+#ifndef BLIS_L1F_KER_PARAMS_H
+#define BLIS_L1F_KER_PARAMS_H
+
+
+#define axpy2v_params \
+\
+             conj_t  conjx, \
+             conj_t  conjy, \
+             dim_t   n, \
+       const void*   alphax, \
+       const void*   alphay, \
+       const void*   x, inc_t incx, \
+       const void*   y, inc_t incy, \
+             void*   z, inc_t incz
+
+#define axpyf_params \
+\
+             conj_t  conja, \
+             conj_t  conjx, \
+             dim_t   m, \
+             dim_t   b_n, \
+       const void*   alpha, \
+       const void*   a, inc_t inca, inc_t lda, \
+       const void*   x, inc_t incx, \
+             void*   y, inc_t incy
+
+#define dotaxpyv_params \
+\
+             conj_t  conjxt, \
+             conj_t  conjx, \
+             conj_t  conjy, \
+             dim_t   m, \
+       const void*   alpha, \
+       const void*   x, inc_t incx, \
+       const void*   y, inc_t incy, \
+             void*   rho, \
+             void*   z, inc_t incz
+
+#define dotxaxpyf_params \
+\
+             conj_t  conjat, \
+             conj_t  conja, \
+             conj_t  conjw, \
+             conj_t  conjx, \
+             dim_t   m, \
+             dim_t   b_n, \
+       const void*   alpha, \
+       const void*   a, inc_t inca, inc_t lda, \
+       const void*   w, inc_t incw, \
+       const void*   x, inc_t incx, \
+       const void*   beta, \
+             void*   y, inc_t incy, \
+             void*   z, inc_t incz
+
+#define dotxf_params \
+\
+             conj_t  conjat, \
+             conj_t  conjx, \
+             dim_t   m, \
+             dim_t   b_n, \
+       const void*   alpha, \
+       const void*   a, inc_t inca, inc_t lda, \
+       const void*   x, inc_t incx, \
+       const void*   beta, \
+             void*   y, inc_t incy
+
+#endif
+
+// end bli_l1f_ker_params.h
+#line 88 "./frame/include/blis.h"
+
+// begin bli_l1m_ker_params.h
+#line 1 "./frame/1m//bli_l1m_ker_params.h"
+
+/*
+
+   BLIS
+   An object-based framework for developing high-performance BLAS-like
+   libraries.
+
+   Copyright (C) 2014, The University of Texas at Austin
+
+   Redistribution and use in source and binary forms, with or without
+   modification, are permitted provided that the following conditions are
+   met:
+    - Redistributions of source code must retain the above copyright
+      notice, this list of conditions and the following disclaimer.
+    - Redistributions in binary form must reproduce the above copyright
+      notice, this list of conditions and the following disclaimer in the
+      documentation and/or other materials provided with the distribution.
+    - Neither the name(s) of the copyright holder(s) nor the names of its
+      contributors may be used to endorse or promote products derived
+      from this software without specific prior written permission.
+
+   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+   "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+   LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+   A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+   HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+   SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+   LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+   DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+   THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+   (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+   OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+*/
+
+#ifndef BLIS_L1M_KER_PARAMS_H
+#define BLIS_L1M_KER_PARAMS_H
+
+
+//
+// -- Level-1m kernel function types -------------------------------------------
+//
+
+// packm
+
+// NOTE: This is the function type for the structure-aware "kernel".
+
+#define packm_params \
+\
+             struc_t strucc, \
+             diag_t  diagc, \
+             uplo_t  uploc, \
+             conj_t  conjc, \
+             pack_t  schema, \
+             bool    invdiag, \
+             dim_t   panel_dim, \
+             dim_t   panel_len, \
+             dim_t   panel_dim_max, \
+             dim_t   panel_len_max, \
+             dim_t   panel_dim_off, \
+             dim_t   panel_len_off, \
+       const void*   kappa, \
+       const void*   c, inc_t incc, inc_t ldc, \
+             void*   p,             inc_t ldp, \
+                        inc_t is_p, \
+       const void*   params  \
+
+
+// packm_cxk (packm microkernel)
+
+#define packm_cxk_params \
+\
+             conj_t  conja, \
+             pack_t  schema, \
+             dim_t   cdim, \
+             dim_t   n, \
+             dim_t   n_max, \
+       const void*   kappa, \
+       const void*   a, inc_t inca, inc_t lda, \
+             void*   p,             inc_t ldp  \
+
+
+// unpackm_cxk kernel
+
+#define unpackm_cxk_params \
+\
+             conj_t  conja, \
+             pack_t  schema, \
+             dim_t   cdim, \
+             dim_t   n, \
+       const void*   kappa, \
+       const void*   p,             inc_t ldp, \
+             void*   a, inc_t inca, inc_t lda  \
+
+
+// packm_cxc_diag kernel
+
+#define packm_cxc_diag_params \
+\
+             struc_t struca, \
+             diag_t  diaga, \
+             uplo_t  uploa, \
+             conj_t  conja, \
+             pack_t  schema, \
+             bool    invdiag, \
+             dim_t   cdim, \
+             dim_t   n_max, \
+       const void*   kappa, \
+       const void*   a, inc_t inca, inc_t lda, \
+             void*   p,             inc_t ldp  \
+
+
+#endif
+
+// end bli_l1m_ker_params.h
+#line 89 "./frame/include/blis.h"
+
+// begin bli_l3_ukr_params.h
+#line 1 "./frame/3//bli_l3_ukr_params.h"
+
+/*
+
+   BLIS
+   An object-based framework for developing high-performance BLAS-like
+   libraries.
+
+   Copyright (C) 2014, The University of Texas at Austin
+
+   Redistribution and use in source and binary forms, with or without
+   modification, are permitted provided that the following conditions are
+   met:
+    - Redistributions of source code must retain the above copyright
+      notice, this list of conditions and the following disclaimer.
+    - Redistributions in binary form must reproduce the above copyright
+      notice, this list of conditions and the following disclaimer in the
+      documentation and/or other materials provided with the distribution.
+    - Neither the name(s) of the copyright holder(s) nor the names of its
+      contributors may be used to endorse or promote products derived
+      from this software without specific prior written permission.
+
+   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+   "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+   LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+   A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+   HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+   SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+   LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+   DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+   THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+   (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+   OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+*/
+
+#ifndef BLIS_L3_UKR_PARAMS_H
+#define BLIS_L3_UKR_PARAMS_H
+
+
+#define gemm_params \
+\
+             dim_t  m, \
+             dim_t  n, \
+             dim_t  k, \
+       const void*  alpha, \
+       const void*  a, \
+       const void*  b, \
+       const void*  beta, \
+             void*  c, inc_t rs_c, inc_t cs_c
+
+#define gemmtrsm_params \
+\
+             dim_t  m, \
+             dim_t  n, \
+             dim_t  k, \
+       const void*  alpha, \
+       const void*  a1x, \
+       const void*  a11, \
+       const void*  bx1, \
+             void*  b11, \
+             void*  c11, inc_t rs_c, inc_t cs_c
+
+#define trsm_params \
+\
+       const void*  a, \
+             void*  b, \
+             void*  c, inc_t rs_c, inc_t cs_c
+
+
+#endif
+
+// end bli_l3_ukr_params.h
+#line 90 "./frame/include/blis.h"
+
+// begin bli_l3_sup_ker_params.h
+#line 1 "./frame/3//bli_l3_sup_ker_params.h"
+
+/*
+
+   BLIS
+   An object-based framework for developing high-performance BLAS-like
+   libraries.
+
+   Copyright (C) 2014, The University of Texas at Austin
+
+   Redistribution and use in source and binary forms, with or without
+   modification, are permitted provided that the following conditions are
+   met:
+    - Redistributions of source code must retain the above copyright
+      notice, this list of conditions and the following disclaimer.
+    - Redistributions in binary form must reproduce the above copyright
+      notice, this list of conditions and the following disclaimer in the
+      documentation and/or other materials provided with the distribution.
+    - Neither the name(s) of the copyright holder(s) nor the names of its
+      contributors may be used to endorse or promote products derived
+      from this software without specific prior written permission.
+
+   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+   "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+   LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+   A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+   HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+   SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+   LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+   DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+   THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+   (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+   OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+*/
+
+#ifndef BLIS_L3_SUP_KER_PARAMS_H
+#define BLIS_L3_SUP_KER_PARAMS_H
+
+
+#define gemmsup_params \
+\
+             conj_t conja, \
+             conj_t conjb, \
+             dim_t  m, \
+             dim_t  n, \
+             dim_t  k, \
+       const void*  alpha, \
+       const void*  a, inc_t rs_a, inc_t cs_a, \
+       const void*  b, inc_t rs_b, inc_t cs_b, \
+       const void*  beta, \
+             void*  c, inc_t rs_c, inc_t cs_c
+
+
+#endif
+
+// end bli_l3_sup_ker_params.h
+#line 91 "./frame/include/blis.h"
+
+
+// begin bli_l1v_ker_prot.h
+#line 1 "./frame/1//bli_l1v_ker_prot.h"
+
+/*
+
+   BLIS
+   An object-based framework for developing high-performance BLAS-like
+   libraries.
+
+   Copyright (C) 2014, The University of Texas at Austin
+
+   Redistribution and use in source and binary forms, with or without
+   modification, are permitted provided that the following conditions are
+   met:
+    - Redistributions of source code must retain the above copyright
+      notice, this list of conditions and the following disclaimer.
+    - Redistributions in binary form must reproduce the above copyright
+      notice, this list of conditions and the following disclaimer in the
+      documentation and/or other materials provided with the distribution.
+    - Neither the name(s) of the copyright holder(s) nor the names of its
+      contributors may be used to endorse or promote products derived
+      from this software without specific prior written permission.
+
+   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+   "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+   LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+   A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+   HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+   SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+   LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+   DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+   THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+   (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+   OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+*/
+
+#ifndef BLIS_L1V_KER_PROT_H
+#define BLIS_L1V_KER_PROT_H
+
+//
+// Define template prototypes for level-1v kernels.
+//
+
+#undef  L1VTPROT
+#define L1VTPROT( ctype, ch, funcname, opname ) \
+\
+void PASTEMAC(ch,funcname) \
+     ( \
+       PASTECH(opname,_params), \
+       BLIS_CNTX_PARAM  \
+     );
+
+#define ADDV_KER_PROT(     ctype, ch, fn )  L1VTPROT( ctype, ch, fn, addv );
+#define AMAXV_KER_PROT(    ctype, ch, fn )  L1VTPROT( ctype, ch, fn, amaxv );
+#define AXPBYV_KER_PROT(   ctype, ch, fn )  L1VTPROT( ctype, ch, fn, axpbyv );
+#define AXPYV_KER_PROT(    ctype, ch, fn )  L1VTPROT( ctype, ch, fn, axpyv );
+#define COPYV_KER_PROT(    ctype, ch, fn )  L1VTPROT( ctype, ch, fn, copyv );
+#define DOTV_KER_PROT(     ctype, ch, fn )  L1VTPROT( ctype, ch, fn, dotv );
+#define DOTXV_KER_PROT(    ctype, ch, fn )  L1VTPROT( ctype, ch, fn, dotxv );
+#define INVERTV_KER_PROT(  ctype, ch, fn )  L1VTPROT( ctype, ch, fn, invertv );
+#define INVSCALV_KER_PROT( ctype, ch, fn )  L1VTPROT( ctype, ch, fn, invscalv );
+#define SCALV_KER_PROT(    ctype, ch, fn )  L1VTPROT( ctype, ch, fn, scalv );
+#define SCAL2V_KER_PROT(   ctype, ch, fn )  L1VTPROT( ctype, ch, fn, scal2v );
+#define SETV_KER_PROT(     ctype, ch, fn )  L1VTPROT( ctype, ch, fn, setv );
+#define SUBV_KER_PROT(     ctype, ch, fn )  L1VTPROT( ctype, ch, fn, subv );
+#define SWAPV_KER_PROT(    ctype, ch, fn )  L1VTPROT( ctype, ch, fn, swapv );
+#define XPBYV_KER_PROT(    ctype, ch, fn )  L1VTPROT( ctype, ch, fn, xpbyv );
+
+
+#endif
+
+// end bli_l1v_ker_prot.h
+#line 93 "./frame/include/blis.h"
+
+// begin bli_l1f_ker_prot.h
+#line 1 "./frame/1f//bli_l1f_ker_prot.h"
+
+/*
+
+   BLIS
+   An object-based framework for developing high-performance BLAS-like
+   libraries.
+
+   Copyright (C) 2014, The University of Texas at Austin
+
+   Redistribution and use in source and binary forms, with or without
+   modification, are permitted provided that the following conditions are
+   met:
+    - Redistributions of source code must retain the above copyright
+      notice, this list of conditions and the following disclaimer.
+    - Redistributions in binary form must reproduce the above copyright
+      notice, this list of conditions and the following disclaimer in the
+      documentation and/or other materials provided with the distribution.
+    - Neither the name(s) of the copyright holder(s) nor the names of its
+      contributors may be used to endorse or promote products derived
+      from this software without specific prior written permission.
+
+   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+   "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+   LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+   A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+   HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+   SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+   LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+   DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+   THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+   (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+   OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+*/
+
+#ifndef BLIS_L1F_KER_PROT_H
+#define BLIS_L1F_KER_PROT_H
+
+//
+// Define template prototypes for level-1f kernels.
+//
+
+#undef  L1FTPROT
+#define L1FTPROT( ctype, ch, funcname, opname ) \
+\
+void PASTEMAC(ch,funcname) \
+     ( \
+       PASTECH(opname,_params), \
+       BLIS_CNTX_PARAM  \
+     );
+
+#define AXPY2V_KER_PROT(    ctype, ch, fn )  L1FTPROT( ctype, ch, fn, axpy2v );
+#define AXPYF_KER_PROT(     ctype, ch, fn )  L1FTPROT( ctype, ch, fn, axpyf );
+#define DOTAXPYV_KER_PROT(  ctype, ch, fn )  L1FTPROT( ctype, ch, fn, dotaxpyv );
+#define DOTXAXPYF_KER_PROT( ctype, ch, fn )  L1FTPROT( ctype, ch, fn, dotxaxpyf );
+#define DOTXF_KER_PROT(     ctype, ch, fn )  L1FTPROT( ctype, ch, fn, dotxf );
+
+
+#endif
+
+// end bli_l1f_ker_prot.h
+#line 94 "./frame/include/blis.h"
+
+// begin bli_l1m_ker_prot.h
+#line 1 "./frame/1m//bli_l1m_ker_prot.h"
+
+/*
+
+   BLIS
+   An object-based framework for developing high-performance BLAS-like
+   libraries.
+
+   Copyright (C) 2014, The University of Texas at Austin
+
+   Redistribution and use in source and binary forms, with or without
+   modification, are permitted provided that the following conditions are
+   met:
+    - Redistributions of source code must retain the above copyright
+      notice, this list of conditions and the following disclaimer.
+    - Redistributions in binary form must reproduce the above copyright
+      notice, this list of conditions and the following disclaimer in the
+      documentation and/or other materials provided with the distribution.
+    - Neither the name(s) of the copyright holder(s) nor the names of its
+      contributors may be used to endorse or promote products derived
+      from this software without specific prior written permission.
+
+   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+   "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+   LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+   A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+   HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+   SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+   LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+   DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+   THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+   (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+   OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+*/
+
+#ifndef BLIS_L1M_KER_PROT_H
+#define BLIS_L1M_KER_PROT_H
+
+//
+// Define template prototypes for level-1m kernels.
+//
+
+#undef  L1MTPROT
+#define L1MTPROT( ctype, ch, funcname, opname ) \
+\
+void PASTEMAC(ch,funcname) \
+     ( \
+       PASTECH(opname,_params), \
+       BLIS_CNTX_PARAM  \
+     );
+
+#define PACKM_KER_PROT(      ctype, ch, fn )  L1MTPROT( ctype, ch, fn, packm_cxk );
+#define UNPACKM_KER_PROT(    ctype, ch, fn )  L1MTPROT( ctype, ch, fn, unpackm_cxk );
+#define PACKM_DIAG_KER_PROT( ctype, ch, fn )  L1MTPROT( ctype, ch, fn, packm_cxc_diag );
+
+
+#endif
+
+// end bli_l1m_ker_prot.h
+#line 95 "./frame/include/blis.h"
+
+// begin bli_l3_ukr_prot.h
+#line 1 "./frame/3//bli_l3_ukr_prot.h"
+
+/*
+
+   BLIS
+   An object-based framework for developing high-performance BLAS-like
+   libraries.
+
+   Copyright (C) 2014, The University of Texas at Austin
+
+   Redistribution and use in source and binary forms, with or without
+   modification, are permitted provided that the following conditions are
+   met:
+    - Redistributions of source code must retain the above copyright
+      notice, this list of conditions and the following disclaimer.
+    - Redistributions in binary form must reproduce the above copyright
+      notice, this list of conditions and the following disclaimer in the
+      documentation and/or other materials provided with the distribution.
+    - Neither the name(s) of the copyright holder(s) nor the names of its
+      contributors may be used to endorse or promote products derived
+      from this software without specific prior written permission.
+
+   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+   "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+   LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+   A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+   HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+   SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+   LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+   DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+   THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+   (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+   OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+*/
+
+#ifndef BLIS_L3_UKR_PROT_H
+#define BLIS_L3_UKR_PROT_H
+
+//
+// Define template prototypes for level-3 micro-kernels.
+//
+
+#undef  L3TPROT
+#define L3TPROT( ctype, ch, funcname, opname ) \
+\
+void PASTEMAC(ch,funcname) \
+     ( \
+       PASTECH(opname,_params), \
+       BLIS_AUXINFO_PARAM, \
+       BLIS_CNTX_PARAM  \
+     );
+
+#define GEMM_UKR_PROT(     ctype, ch, fn )  L3TPROT( ctype, ch, fn, gemm );
+#define GEMMTRSM_UKR_PROT( ctype, ch, fn )  L3TPROT( ctype, ch, fn, gemmtrsm );
+#define TRSM_UKR_PROT(     ctype, ch, fn )  L3TPROT( ctype, ch, fn, trsm );
+
+
+#endif
+
+// end bli_l3_ukr_prot.h
+#line 96 "./frame/include/blis.h"
+
+// begin bli_l3_sup_ker_prot.h
+#line 1 "./frame/3//bli_l3_sup_ker_prot.h"
+
+/*
+
+   BLIS
+   An object-based framework for developing high-performance BLAS-like
+   libraries.
+
+   Copyright (C) 2019, Advanced Micro Devices, Inc.
+
+   Redistribution and use in source and binary forms, with or without
+   modification, are permitted provided that the following conditions are
+   met:
+    - Redistributions of source code must retain the above copyright
+      notice, this list of conditions and the following disclaimer.
+    - Redistributions in binary form must reproduce the above copyright
+      notice, this list of conditions and the following disclaimer in the
+      documentation and/or other materials provided with the distribution.
+    - Neither the name(s) of the copyright holder(s) nor the names of its
+      contributors may be used to endorse or promote products derived
+      from this software without specific prior written permission.
+
+   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+   "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+   LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+   A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+   HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+   SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+   LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+   DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+   THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+   (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+   OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+*/
+
+#ifndef BLIS_L3_SUP_KER_PROT_H
+#define BLIS_L3_SUP_KER_PROT_H
+
+//
+// Define template prototypes for level-3 kernels on small/unpacked matrices.
+//
+
+#undef  SUPTPROT
+#define SUPTPROT( ctype, ch, funcname, opname ) \
+\
+void PASTEMAC(ch,funcname) \
+     ( \
+       PASTECH(opname,_params), \
+       BLIS_AUXINFO_PARAM, \
+       BLIS_CNTX_PARAM  \
+     );
+
+#define GEMMSUP_KER_PROT( ctype, ch, fn )  SUPTPROT( ctype, ch, fn, gemmsup );
+
+
+#endif
+
+// end bli_l3_sup_ker_prot.h
+#line 97 "./frame/include/blis.h"
+
+
+// begin bli_arch_config_pre.h
+#line 1 "./frame/include//bli_arch_config_pre.h"
+
+/*
+
+   BLIS
+   An object-based framework for developing high-performance BLAS-like
+   libraries.
+
+   Copyright (C) 2014, The University of Texas at Austin
+
+   Redistribution and use in source and binary forms, with or without
+   modification, are permitted provided that the following conditions are
+   met:
+    - Redistributions of source code must retain the above copyright
+      notice, this list of conditions and the following disclaimer.
+    - Redistributions in binary form must reproduce the above copyright
+      notice, this list of conditions and the following disclaimer in the
+      documentation and/or other materials provided with the distribution.
+    - Neither the name(s) of the copyright holder(s) nor the names of its
+      contributors may be used to endorse or promote products derived
+      from this software without specific prior written permission.
+
+   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+   "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+   LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+   A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+   HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+   SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+   LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+   DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+   THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+   (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+   OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+*/
+
+#ifndef BLIS_ARCH_CONFIG_PRE_H
+#define BLIS_ARCH_CONFIG_PRE_H
+
+
+// -- Naming-related kernel definitions ----------------------------------------
+
+// The default suffix appended to reference kernels.
+#define BLIS_REF_SUFFIX  _ref
+
+// A suffix used for labeling certain induced method aware functions.
+#define BLIS_IND_SUFFIX  _ind
+
+// Add an underscore to the BLIS kernel set string, if it was defined.
+#ifdef  BLIS_CNAME
+#define BLIS_CNAME_INFIX  PASTECH(_,BLIS_CNAME)
+#endif
+
+// Combine the CNAME and _ref for convenience to the code that defines
+// reference kernels.
+//#define BLIS_CNAME_REF_SUFFIX  PASTECH2(_,BLIS_CNAME,BLIS_REF_SUFFIX)
+
+// -- Prototype-generating macro definitions -----------------------------------
+
+// Prototype-generating macro for bli_cntx_init_<arch>*() functions.
+#define CNTX_INIT_PROTS( archname ) \
+\
+void PASTEMAC(cntx_init_,archname) \
+     ( \
+       cntx_t* cntx \
+     ); \
+void PASTEMAC2(cntx_init_,archname,BLIS_REF_SUFFIX) \
+     ( \
+       cntx_t* cntx \
+     ); \
+void PASTEMAC2(cntx_init_,archname,BLIS_IND_SUFFIX) \
+     ( \
+       ind_t   method, \
+       cntx_t* cntx \
+     );
+
+
+#endif
+
+// end bli_arch_config_pre.h
+#line 99 "./frame/include/blis.h"
+
+// begin bli_arch_config.h
+#line 1 "./frame/include//bli_arch_config.h"
+
+/*
+
+   BLIS
+   An object-based framework for developing high-performance BLAS-like
+   libraries.
+
+   Copyright (C) 2014, The University of Texas at Austin
+   Copyright (C) 2016, Hewlett Packard Enterprise Development LP
+   Copyright (C) 2019 - 2020, Advanced Micro Devices, Inc.
+
+   Redistribution and use in source and binary forms, with or without
+   modification, are permitted provided that the following conditions are
+   met:
+    - Redistributions of source code must retain the above copyright
+      notice, this list of conditions and the following disclaimer.
+    - Redistributions in binary form must reproduce the above copyright
+      notice, this list of conditions and the following disclaimer in the
+      documentation and/or other materials provided with the distribution.
+    - Neither the name(s) of the copyright holder(s) nor the names of its
+      contributors may be used to endorse or promote products derived
+      from this software without specific prior written permission.
+
+   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+   "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+   LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+   A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+   HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+   SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+   LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+   DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+   THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+   (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+   OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+*/
+
+#ifndef BLIS_ARCH_CONFIG_H
+#define BLIS_ARCH_CONFIG_H
+
+//
+// -- Context initialization prototypes ----------------------------------------
+//
+
+// -- Intel64 architectures --
+
+#ifdef BLIS_CONFIG_SKX
+CNTX_INIT_PROTS( skx )
+#endif
+#ifdef BLIS_CONFIG_KNL
+CNTX_INIT_PROTS( knl )
+#endif
+#ifdef BLIS_CONFIG_KNC
+CNTX_INIT_PROTS( knc )
+#endif
+#ifdef BLIS_CONFIG_HASWELL
+CNTX_INIT_PROTS( haswell )
+#endif
+#ifdef BLIS_CONFIG_SANDYBRIDGE
+CNTX_INIT_PROTS( sandybridge )
+#endif
+#ifdef BLIS_CONFIG_PENRYN
+CNTX_INIT_PROTS( penryn )
+#endif
+
+// -- AMD64 architectures --
+
+#ifdef BLIS_CONFIG_ZEN3
+CNTX_INIT_PROTS( zen3 )
+#endif
+#ifdef BLIS_CONFIG_ZEN2
+CNTX_INIT_PROTS( zen2 )
+#endif
+#ifdef BLIS_CONFIG_ZEN
+CNTX_INIT_PROTS( zen )
+#endif
+#ifdef BLIS_CONFIG_EXCAVATOR
+CNTX_INIT_PROTS( excavator )
+#endif
+#ifdef BLIS_CONFIG_STEAMROLLER
+CNTX_INIT_PROTS( steamroller )
+#endif
+#ifdef BLIS_CONFIG_PILEDRIVER
+CNTX_INIT_PROTS( piledriver )
+#endif
+#ifdef BLIS_CONFIG_BULLDOZER
+CNTX_INIT_PROTS( bulldozer )
+#endif
+
+// -- ARM architectures --
+
+// ARM-SVE
+#ifdef BLIS_CONFIG_ARMSVE
+CNTX_INIT_PROTS( armsve )
+#endif
+#ifdef BLIS_CONFIG_A64FX
+CNTX_INIT_PROTS( a64fx )
+#endif
+// ARM-NEON (4x128)
+#ifdef BLIS_CONFIG_ALTRAMAX
+CNTX_INIT_PROTS( altramax )
+#endif
+#ifdef BLIS_CONFIG_ALTRA
+CNTX_INIT_PROTS( altra )
+#endif
+#ifdef BLIS_CONFIG_FIRESTORM
+CNTX_INIT_PROTS( firestorm )
+#endif
+// ARM-NEON (2x128)
+#ifdef BLIS_CONFIG_THUNDERX2
+CNTX_INIT_PROTS( thunderx2 )
+#endif
+#ifdef BLIS_CONFIG_CORTEXA57
+CNTX_INIT_PROTS( cortexa57 )
+#endif
+#ifdef BLIS_CONFIG_CORTEXA53
+CNTX_INIT_PROTS( cortexa53 )
+#endif
+// ARM 32-bit (vintage)
+#ifdef BLIS_CONFIG_CORTEXA15
+CNTX_INIT_PROTS( cortexa15 )
+#endif
+#ifdef BLIS_CONFIG_CORTEXA9
+CNTX_INIT_PROTS( cortexa9 )
+#endif
+
+// -- IBM Power --
+
+#ifdef BLIS_CONFIG_POWER10
+CNTX_INIT_PROTS( power10 )
+#endif
+#ifdef BLIS_CONFIG_POWER9
+CNTX_INIT_PROTS( power9 )
+#endif
+#ifdef BLIS_CONFIG_POWER7
+CNTX_INIT_PROTS( power7 )
+#endif
+
+// -- IBM BG/Q --
+
+#ifdef BLIS_CONFIG_BGQ
+CNTX_INIT_PROTS( bgq )
+#endif
+
+// -- RISC-V --
+
+#ifdef BLIS_CONFIG_RV32I
+CNTX_INIT_PROTS( rv32i )
+#endif
+#ifdef BLIS_CONFIG_RV64I
+CNTX_INIT_PROTS( rv64i )
+#endif
+#ifdef BLIS_CONFIG_RV32IV
+CNTX_INIT_PROTS( rv32iv )
+#endif
+#ifdef BLIS_CONFIG_RV64IV
+CNTX_INIT_PROTS( rv64iv )
+#endif
+
+// -- SiFive architectures --
+
+#ifdef BLIS_CONFIG_SIFIVE_X280
+CNTX_INIT_PROTS( sifive_x280 )
+#endif
+
+// -- Generic --
+
+#ifdef BLIS_CONFIG_GENERIC
+CNTX_INIT_PROTS( generic )
+#endif
+
+
+//
+// -- Architecture family-specific headers -------------------------------------
+//
+
+// -- x86_64 families --
+
+#ifdef BLIS_FAMILY_INTEL64
+#include "bli_family_intel64.h" // skipped
+#endif
+#ifdef BLIS_FAMILY_AMD64
+#include "bli_family_amd64.h" // skipped
+#endif
+#ifdef BLIS_FAMILY_AMD64_LEGACY
+#include "bli_family_amd64_legacy.h" // skipped
+#endif
+#ifdef BLIS_FAMILY_X86_64
+#include "bli_family_x86_64.h" // skipped
+#endif
+
+// -- Intel64 architectures --
+
+#ifdef BLIS_FAMILY_SKX
+#include "bli_family_skx.h" // skipped
+#endif
+#ifdef BLIS_FAMILY_KNL
+#include "bli_family_knl.h" // skipped
+#endif
+#ifdef BLIS_FAMILY_KNC
+#include "bli_family_knc.h" // skipped
+#endif
+#ifdef BLIS_FAMILY_HASWELL
+#include "bli_family_haswell.h" // skipped
+#endif
+#ifdef BLIS_FAMILY_SANDYBRIDGE
+#include "bli_family_sandybridge.h" // skipped
+#endif
+#ifdef BLIS_FAMILY_PENRYN
+#include "bli_family_penryn.h" // skipped
+#endif
+
+// -- AMD64 architectures --
+
+#ifdef BLIS_FAMILY_ZEN3
+#include "bli_family_zen3.h" // skipped
+#endif
+#ifdef BLIS_FAMILY_ZEN2
+#include "bli_family_zen2.h" // skipped
+#endif
+#ifdef BLIS_FAMILY_ZEN
+#include "bli_family_zen.h" // skipped
+#endif
+#ifdef BLIS_FAMILY_EXCAVATOR
+#include "bli_family_excavator.h" // skipped
+#endif
+#ifdef BLIS_FAMILY_STEAMROLLER
+#include "bli_family_steamroller.h" // skipped
+#endif
+#ifdef BLIS_FAMILY_PILEDRIVER
+#include "bli_family_piledriver.h" // skipped
+#endif
+#ifdef BLIS_FAMILY_BULLDOZER
+#include "bli_family_bulldozer.h" // skipped
+#endif
+
+// -- ARM families --
+#ifdef BLIS_FAMILY_ARM64
+#include "bli_family_arm64.h" // skipped
+#endif
+#ifdef BLIS_FAMILY_ARM32
+#include "bli_family_arm32.h" // skipped
+#endif
+
+// -- ARM architectures --
+
+// ARM-SVE
+#ifdef BLIS_FAMILY_ARMSVE
+#include "bli_family_armsve.h" // skipped
+#endif
+#ifdef BLIS_FAMILY_A64FX
+#include "bli_family_a64fx.h" // skipped
+#endif
+// ARM-NEON (4x128)
+#ifdef BLIS_FAMILY_ALTRAMAX
+#include "bli_family_altramax.h" // skipped
+#endif
+#ifdef BLIS_FAMILY_ALTRA
+#include "bli_family_altra.h" // skipped
+#endif
+#ifdef BLIS_FAMILY_FIRESTORM
+#include "bli_family_firestorm.h" // skipped
+#endif
+// ARM-NEON (2x128)
+#ifdef BLIS_FAMILY_THUNDERX2
+#include "bli_family_thunderx2.h" // skipped
+#endif
+#ifdef BLIS_FAMILY_CORTEXA57
+// begin bli_family_cortexa57.h
+#line 1 "./config/cortexa57//bli_family_cortexa57.h"
+
+/*
+
+   BLIS
+   An object-based framework for developing high-performance BLAS-like
+   libraries.
+
+   Copyright (C) 2014, The University of Texas at Austin
+
+   Redistribution and use in source and binary forms, with or without
+   modification, are permitted provided that the following conditions are
+   met:
+    - Redistributions of source code must retain the above copyright
+      notice, this list of conditions and the following disclaimer.
+    - Redistributions in binary form must reproduce the above copyright
+      notice, this list of conditions and the following disclaimer in the
+      documentation and/or other materials provided with the distribution.
+    - Neither the name(s) of the copyright holder(s) nor the names of its
+      contributors may be used to endorse or promote products derived
+      from this software without specific prior written permission.
+
+   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+   "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+   LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+   A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+   HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+   SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+   LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+   DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+   THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+   (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+   OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+*/
+
+//#ifndef BLIS_FAMILY_H
+//#define BLIS_FAMILY_H
+
+
+// -- MEMORY ALLOCATION --------------------------------------------------------
+
+#define BLIS_SIMD_ALIGN_SIZE           16
+
+
+#if 0
+// -- LEVEL-3 MICRO-KERNEL CONSTANTS -------------------------------------------
+
+#define BLIS_SGEMM_UKERNEL             bli_sgemm_opt_8x12
+#define BLIS_DEFAULT_MR_S              8
+#define BLIS_DEFAULT_NR_S              12
+#define BLIS_DEFAULT_MC_S              120 //1536 //336 //416 // 1280 //160 // 160 // 160 //2048 //336 
+#define BLIS_DEFAULT_KC_S              640 //1536 //336 //704 //1280 //672 //528 // 856 //2048 //528 
+#define BLIS_DEFAULT_NC_S              3072
+
+#define BLIS_DGEMM_UKERNEL             bli_dgemm_opt_6x8
+#define BLIS_DEFAULT_MR_D              6
+#define BLIS_DEFAULT_NR_D              8
+#define BLIS_DEFAULT_MC_D              120 //1536 //160 //80 //176 
+#define BLIS_DEFAULT_KC_D              240 //1536 //304 //336 //368 
+#define BLIS_DEFAULT_NC_D              3072
+
+#define BLIS_DEFAULT_MR_C              8
+#define BLIS_DEFAULT_NR_C              4
+#define BLIS_DEFAULT_MC_C              64
+#define BLIS_DEFAULT_KC_C              128
+#define BLIS_DEFAULT_NC_C              4096
+
+#define BLIS_DEFAULT_MR_Z              8
+#define BLIS_DEFAULT_NR_Z              4
+#define BLIS_DEFAULT_MC_Z              64
+#define BLIS_DEFAULT_KC_Z              128
+#define BLIS_DEFAULT_NC_Z              4096
+#endif
+
+
+//#endif
+
+// end bli_family_cortexa57.h
+#line 269 "./frame/include//bli_arch_config.h"
+
+#endif
+#ifdef BLIS_FAMILY_CORTEXA53
+#include "bli_family_cortexa53.h" // skipped
+#endif
+// ARM 32-bit (vintage)
+#ifdef BLIS_FAMILY_CORTEXA15
+#include "bli_family_cortexa15.h" // skipped
+#endif
+#ifdef BLIS_FAMILY_CORTEXA9
+#include "bli_family_cortexa9.h" // skipped
+#endif
+
+// -- IBM Power families --
+#ifdef BLIS_FAMILY_POWER
+#include "bli_family_power.h" // skipped
+#endif
+
+// -- IBM Power architectures --
+
+#ifdef BLIS_FAMILY_POWER10
+#include "bli_family_power10.h" // skipped
+#endif
+#ifdef BLIS_FAMILY_POWER9
+#include "bli_family_power9.h" // skipped
+#endif
+#ifdef BLIS_FAMILY_POWER7
+#include "bli_family_power7.h" // skipped
+#endif
+
+// -- IBM BG/Q --
+
+#ifdef BLIS_FAMILY_BGQ
+#include "bli_family_bgq.h" // skipped
+#endif
+
+// -- SiFive families --
+
+#ifdef BLIS_FAMILY_SIFIVE_X280
+#include "bli_family_sifive_x280.h" // skipped
+#endif
+
+// -- Generic --
+
+#ifdef BLIS_FAMILY_GENERIC
+#include "bli_family_generic.h" // skipped
+#endif
+
+
+//
+// -- kernel set prototypes ----------------------------------------------------
+//
+
+// -- Intel64 architectures --
+#ifdef BLIS_KERNELS_SKX
+#include "bli_kernels_skx.h" // skipped
+#endif
+#ifdef BLIS_KERNELS_KNL
+#include "bli_kernels_knl.h" // skipped
+#endif
+#ifdef BLIS_KERNELS_KNC
+#include "bli_kernels_knc.h" // skipped
+#endif
+#ifdef BLIS_KERNELS_HASWELL
+#include "bli_kernels_haswell.h" // skipped
+#endif
+#ifdef BLIS_KERNELS_SANDYBRIDGE
+#include "bli_kernels_sandybridge.h" // skipped
+#endif
+#ifdef BLIS_KERNELS_PENRYN
+#include "bli_kernels_penryn.h" // skipped
+#endif
+
+// -- AMD64 architectures --
+
+#ifdef BLIS_KERNELS_ZEN2
+#include "bli_kernels_zen2.h" // skipped
+#endif
+#ifdef BLIS_KERNELS_ZEN
+#include "bli_kernels_zen.h" // skipped
+#endif
+//#ifdef BLIS_KERNELS_EXCAVATOR
+//#include "bli_kernels_excavator.h"
+//#endif
+//#ifdef BLIS_KERNELS_STEAMROLLER
+//#include "bli_kernels_steamroller.h"
+//#endif
+#ifdef BLIS_KERNELS_PILEDRIVER
+#include "bli_kernels_piledriver.h" // skipped
+#endif
+#ifdef BLIS_KERNELS_BULLDOZER
+#include "bli_kernels_bulldozer.h" // skipped
+#endif
+
+// -- ARM architectures --
+
+#ifdef BLIS_KERNELS_ARMSVE
+#include "bli_kernels_armsve.h" // skipped
+#endif
+#ifdef BLIS_KERNELS_ARMV8A
+// begin bli_kernels_armv8a.h
+#line 1 "./kernels/armv8a//bli_kernels_armv8a.h"
+
+/*
+
+   BLIS
+   An object-based framework for developing high-performance BLAS-like
+   libraries.
+
+   Copyright (C) 2014, The University of Texas at Austin
+
+   Redistribution and use in source and binary forms, with or without
+   modification, are permitted provided that the following conditions are
+   met:
+    - Redistributions of source code must retain the above copyright
+      notice, this list of conditions and the following disclaimer.
+    - Redistributions in binary form must reproduce the above copyright
+      notice, this list of conditions and the following disclaimer in the
+      documentation and/or other materials provided with the distribution.
+    - Neither the name(s) of the copyright holder(s) nor the names of its
+      contributors may be used to endorse or promote products derived
+      from this software without specific prior written permission.
+
+   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+   "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+   LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+   A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+   HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+   SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+   LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+   DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+   THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+   (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+   OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+*/
+
+PACKM_KER_PROT( float,    s, packm_armv8a_int_8xk )
+PACKM_KER_PROT( float,    s, packm_armv8a_int_12xk )
+PACKM_KER_PROT( double,   d, packm_armv8a_int_6xk )
+PACKM_KER_PROT( double,   d, packm_armv8a_int_8xk )
+
+GEMM_UKR_PROT( float,    s, gemm_armv8a_asm_8x12 )
+GEMM_UKR_PROT( double,   d, gemm_armv8a_asm_6x8 )
+GEMM_UKR_PROT( float,    s, gemm_armv8a_asm_12x8r )
+GEMM_UKR_PROT( double,   d, gemm_armv8a_asm_8x6r )
+// GEMM_UKR_PROT( double,   d, gemm_armv8a_asm_6x8r )
+// GEMM_UKR_PROT( double,   d, gemm_armv8a_asm_8x4 )
+// GEMM_UKR_PROT( double,   d, gemm_armv8a_asm_4x4 )
+
+GEMMSUP_KER_PROT( double,   d, gemmsup_rd_armv8a_asm_6x8n )
+GEMMSUP_KER_PROT( double,   d, gemmsup_rd_armv8a_asm_6x8m )
+GEMMSUP_KER_PROT( double,   d, gemmsup_rv_armv8a_asm_6x8n )
+GEMMSUP_KER_PROT( double,   d, gemmsup_rv_armv8a_asm_6x8m )
+GEMMSUP_KER_PROT( double,   d, gemmsup_rv_armv8a_asm_6x7m )
+GEMMSUP_KER_PROT( double,   d, gemmsup_rv_armv8a_asm_6x6m )
+GEMMSUP_KER_PROT( double,   d, gemmsup_rv_armv8a_asm_6x5m )
+GEMMSUP_KER_PROT( double,   d, gemmsup_rv_armv8a_asm_5x8n )
+GEMMSUP_KER_PROT( double,   d, gemmsup_rv_armv8a_asm_4x8n )
+GEMMSUP_KER_PROT( double,   d, gemmsup_rv_armv8a_asm_4x8m )
+GEMMSUP_KER_PROT( double,   d, gemmsup_rv_armv8a_asm_8x4m )
+
+GEMMSUP_KER_PROT( double,   d, gemmsup_rd_armv8a_int_2x8 )
+GEMMSUP_KER_PROT( double,   d, gemmsup_rd_armv8a_int_3x4 )
+GEMMSUP_KER_PROT( double,   d, gemmsup_rd_armv8a_asm_3x4 )
+GEMMSUP_KER_PROT( double,   d, gemmsup_rd_armv8a_asm_6x3 )
+
+GEMMSUP_KER_PROT( double,   d, gemmsup_rv_armv8a_int_6x4mn )
+GEMMSUP_KER_PROT( double,   d, gemmsup_rv_armv8a_int_3x8mn )
+
+// end bli_kernels_armv8a.h
+#line 369 "./frame/include//bli_arch_config.h"
+
+#endif
+#ifdef BLIS_KERNELS_ARMV7A
+#include "bli_kernels_armv7a.h" // skipped
+#endif
+
+// -- IBM Power --
+
+#ifdef BLIS_KERNELS_POWER10
+#include "bli_kernels_power10.h" // skipped
+#endif
+#ifdef BLIS_KERNELS_POWER9
+#include "bli_kernels_power9.h" // skipped
+#endif
+#ifdef BLIS_KERNELS_POWER7
+#include "bli_kernels_power7.h" // skipped
+#endif
+
+// -- IBM BG/Q --
+
+#ifdef BLIS_KERNELS_BGQ
+#include "bli_kernels_bgq.h" // skipped
+#endif
+
+// -- RISC-V --
+
+#ifdef BLIS_KERNELS_RVI
+#include "bli_kernels_rvi.h" // skipped
+#endif
+#ifdef BLIS_KERNELS_RVIV
+#include "bli_kernels_rviv.h" // skipped
+#endif
+
+// -- SiFive RISC-V architectures --
+
+#ifdef BLIS_KERNELS_SIFIVE_X280
+#include "bli_kernels_sifive_x280.h" // skipped
+#endif
+
+
+#endif
+
+// end bli_arch_config.h
+#line 100 "./frame/include/blis.h"
+
+
+// begin bli_kernel_macro_defs.h
+#line 1 "./frame/include//bli_kernel_macro_defs.h"
+
+/*
+
+   BLIS
+   An object-based framework for developing high-performance BLAS-like
+   libraries.
+
+   Copyright (C) 2014, The University of Texas at Austin
+
+   Redistribution and use in source and binary forms, with or without
+   modification, are permitted provided that the following conditions are
+   met:
+    - Redistributions of source code must retain the above copyright
+      notice, this list of conditions and the following disclaimer.
+    - Redistributions in binary form must reproduce the above copyright
+      notice, this list of conditions and the following disclaimer in the
+      documentation and/or other materials provided with the distribution.
+    - Neither the name(s) of the copyright holder(s) nor the names of its
+      contributors may be used to endorse or promote products derived
+      from this software without specific prior written permission.
+
+   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+   "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+   LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+   A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+   HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+   SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+   LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+   DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+   THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+   (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+   OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+*/
+
+#ifndef BLIS_KERNEL_MACRO_DEFS_H
+#define BLIS_KERNEL_MACRO_DEFS_H
+
+
+// -- Define default threading parameters --------------------------------------
+
+// -- Conventional (large code path) values --
+
+// These BLIS_THREAD_RATIO_? macros distort the amount of work in the m and n
+// dimensions for the purposes of factorizing the total number of threads into
+// ways of parallelism in the ic and jc loops. See bli_rntm.c to see how these
+// macros are used.
+#ifndef BLIS_THREAD_RATIO_M
+#define BLIS_THREAD_RATIO_M     1
+#endif
+
+#ifndef BLIS_THREAD_RATIO_N
+#define BLIS_THREAD_RATIO_N     1
+#endif
+
+// These BLIS_THREAD_MAX_?R macros place a ceiling on the maximum amount of
+// parallelism allowed when performing automatic factorization. See bli_rntm.c
+// to see how these macros are used.
+#ifndef BLIS_THREAD_MAX_IR
+#define BLIS_THREAD_MAX_IR      1
+#endif
+
+#ifndef BLIS_THREAD_MAX_JR
+#define BLIS_THREAD_MAX_JR      4
+#endif
+
+#if 0
+// -- Skinny/small possibly-unpacked (sup code path) values --
+
+#ifndef BLIS_THREAD_SUP_RATIO_M
+#define BLIS_THREAD_SUP_RATIO_M   1
+#endif
+
+#ifndef BLIS_THREAD_SUP_RATIO_N
+#define BLIS_THREAD_SUP_RATIO_N   2
+#endif
+
+#ifndef BLIS_THREAD_SUP_MAX_IR
+#define BLIS_THREAD_SUP_MAX_IR    1
+#endif
+
+#ifndef BLIS_THREAD_SUP_MAX_JR
+#define BLIS_THREAD_SUP_MAX_JR    8
+#endif
+#endif
+
+
+// -- Memory allocation --------------------------------------------------------
+
+// hbwmalloc.h provides hbw_malloc() and hbw_free() on systems with
+// libmemkind. But disable use of libmemkind if BLIS_DISABLE_MEMKIND
+// was explicitly defined.
+#ifdef BLIS_DISABLE_MEMKIND
+  #undef BLIS_ENABLE_MEMKIND
+#endif
+#ifdef BLIS_ENABLE_MEMKIND
+#include <hbwmalloc.h> // skipped
+#endif
+
+// Memory allocation functions. These macros define the three types of
+// malloc()-style functions, and their free() counterparts: one for each
+// type of memory to be allocated.
+// NOTE: ANY ALTERNATIVE TO malloc()/free() USED FOR ANY OF THE FOLLOWING
+// THREE PAIRS OF MACROS MUST USE THE SAME FUNCTION PROTOTYPE AS malloc()
+// and free():
+//
+//   void* malloc( size_t size );
+//   void  free( void* p );
+//
+
+// This allocation function is called to allocate memory for blocks within
+// BLIS's internal memory pools.
+#ifndef BLIS_MALLOC_POOL
+  // If use of libmemkind was enabled at configure-time, the default
+  // memory allocation function for memory pools should be hbw_malloc()
+  // instead of malloc().
+  #ifdef  BLIS_ENABLE_MEMKIND
+  #define BLIS_MALLOC_POOL               hbw_malloc
+  #else
+  #define BLIS_MALLOC_POOL               malloc
+  #endif
+#endif
+
+#ifndef BLIS_FREE_POOL
+  // If use of libmemkind was enabled at configure-time, the default
+  // memory deallocation function for memory pools should be hbw_free()
+  // instead of free().
+  #ifdef  BLIS_ENABLE_MEMKIND
+  #define BLIS_FREE_POOL                 hbw_free
+  #else
+  #define BLIS_FREE_POOL                 free
+  #endif
+#endif
+
+// This allocation function is called to allocate memory for internally-
+// used objects and structures, such as control tree nodes.
+#ifndef BLIS_MALLOC_INTL
+#define BLIS_MALLOC_INTL                 malloc
+#endif
+
+#ifndef BLIS_FREE_INTL
+#define BLIS_FREE_INTL                   free
+#endif
+
+// This allocation function is called to allocate memory for objects
+// created by user-level API functions, such as bli_obj_create().
+#ifndef BLIS_MALLOC_USER
+#define BLIS_MALLOC_USER                 malloc
+#endif
+
+#ifndef BLIS_FREE_USER
+#define BLIS_FREE_USER                   free
+#endif
+
+
+// -- Other system-related definitions -----------------------------------------
+
+// Size of a virtual memory page. This is used to align blocks within the
+// memory pools.
+#ifndef BLIS_PAGE_SIZE
+#define BLIS_PAGE_SIZE                   4096
+#endif
+
+// The maximum number of named SIMD vector registers available for use.
+// When configuring with umbrella configuration families, this should be
+// set to the maximum number of registers across all sub-configurations in
+// the family.
+#ifndef BLIS_SIMD_MAX_NUM_REGISTERS
+#define BLIS_SIMD_MAX_NUM_REGISTERS      32
+#endif
+
+// The maximum size (in bytes) of each SIMD vector.
+// When configuring with umbrella configuration families, this should be
+// set to the maximum SIMD size across all sub-configurations in the family.
+#ifndef BLIS_SIMD_MAX_SIZE
+#define BLIS_SIMD_MAX_SIZE               64
+#endif
+
+// Alignment size (in bytes) needed by the instruction set for aligned
+// SIMD/vector instructions.
+#ifndef BLIS_SIMD_ALIGN_SIZE
+#define BLIS_SIMD_ALIGN_SIZE             BLIS_SIMD_MAX_SIZE
+#endif
+
+// The maximum size in bytes of local stack buffers within macro-kernel
+// functions. These buffers are usually used to store a temporary copy
+// of a single microtile. The reason we multiply by 2 is to handle induced
+// methods, where we use real domain register blocksizes in units of
+// complex elements. Specifically, the macro-kernels will need this larger
+// micro-tile footprint, even though the virtual micro-kernels will only
+// ever be writing to half (real or imaginary part) at a time.
+#ifndef BLIS_STACK_BUF_MAX_SIZE
+#define BLIS_STACK_BUF_MAX_SIZE          ( BLIS_SIMD_MAX_NUM_REGISTERS * \
+                                           BLIS_SIMD_MAX_SIZE * 2 )
+#endif
+
+// Alignment size used to align local stack buffers within macro-kernel
+// functions.
+#ifndef BLIS_STACK_BUF_ALIGN_SIZE
+#define BLIS_STACK_BUF_ALIGN_SIZE        BLIS_SIMD_ALIGN_SIZE
+#endif
+
+// Alignment size used when allocating memory via BLIS_MALLOC_USER.
+// To disable heap alignment, set this to 1.
+#ifndef BLIS_HEAP_ADDR_ALIGN_SIZE
+#define BLIS_HEAP_ADDR_ALIGN_SIZE        BLIS_SIMD_ALIGN_SIZE
+#endif
+
+// Alignment size used when sizing leading dimensions of memory allocated
+// via BLIS_MALLOC_USER.
+#ifndef BLIS_HEAP_STRIDE_ALIGN_SIZE
+#define BLIS_HEAP_STRIDE_ALIGN_SIZE      BLIS_SIMD_ALIGN_SIZE
+#endif
+
+// Alignment sizes used when allocating blocks to the internal memory
+// pool, via BLIS_MALLOC_POOL.
+#ifndef BLIS_POOL_ADDR_ALIGN_SIZE_A
+#define BLIS_POOL_ADDR_ALIGN_SIZE_A      BLIS_PAGE_SIZE
+#endif
+
+#ifndef BLIS_POOL_ADDR_ALIGN_SIZE_B
+#define BLIS_POOL_ADDR_ALIGN_SIZE_B      BLIS_PAGE_SIZE
+#endif
+
+#ifndef BLIS_POOL_ADDR_ALIGN_SIZE_C
+#define BLIS_POOL_ADDR_ALIGN_SIZE_C      BLIS_PAGE_SIZE
+#endif
+
+#ifndef BLIS_POOL_ADDR_ALIGN_SIZE_GEN
+#define BLIS_POOL_ADDR_ALIGN_SIZE_GEN    BLIS_PAGE_SIZE
+#endif
+
+// Offsets from alignment specified by BLIS_POOL_ADDR_ALIGN_SIZE_*.
+#ifndef BLIS_POOL_ADDR_OFFSET_SIZE_A
+#define BLIS_POOL_ADDR_OFFSET_SIZE_A     0
+#endif
+
+#ifndef BLIS_POOL_ADDR_OFFSET_SIZE_B
+#define BLIS_POOL_ADDR_OFFSET_SIZE_B     0
+#endif
+
+#ifndef BLIS_POOL_ADDR_OFFSET_SIZE_C
+#define BLIS_POOL_ADDR_OFFSET_SIZE_C     0
+#endif
+
+#ifndef BLIS_POOL_ADDR_OFFSET_SIZE_GEN
+#define BLIS_POOL_ADDR_OFFSET_SIZE_GEN   0
+#endif
+
+
+// -- MR and NR blocksizes (only for reference kernels) ------------------------
+
+// The build system defines BLIS_IN_REF_KERNEL, but only when compiling
+// reference kernels. By using compile-time constants for MR and NR, the
+// compiler can perform certain optimizations, such as unrolling and
+// vectorization, that would not be otherwise be possible.
+#ifdef BLIS_IN_REF_KERNEL
+
+#ifndef BLIS_MR_s
+#define BLIS_MR_s 4
+#endif
+
+#ifndef BLIS_MR_d
+#define BLIS_MR_d 4
+#endif
+
+#ifndef BLIS_MR_c
+#define BLIS_MR_c 4
+#endif
+
+#ifndef BLIS_MR_z
+#define BLIS_MR_z 4
+#endif
+
+#ifndef BLIS_NR_s
+#define BLIS_NR_s 16
+#endif
+
+#ifndef BLIS_NR_d
+#define BLIS_NR_d 8
+#endif
+
+#ifndef BLIS_NR_c
+#define BLIS_NR_c 8
+#endif
+
+#ifndef BLIS_NR_z
+#define BLIS_NR_z 4
+#endif
+
+#ifndef BLIS_BBM_s
+#define BLIS_BBM_s 1
+#endif
+
+#ifndef BLIS_BBM_d
+#define BLIS_BBM_d 1
+#endif
+
+#ifndef BLIS_BBM_c
+#define BLIS_BBM_c 1
+#endif
+
+#ifndef BLIS_BBM_z
+#define BLIS_BBM_z 1
+#endif
+
+#ifndef BLIS_BBN_s
+#define BLIS_BBN_s 1
+#endif
+
+#ifndef BLIS_BBN_d
+#define BLIS_BBN_d 1
+#endif
+
+#ifndef BLIS_BBN_c
+#define BLIS_BBN_c 1
+#endif
+
+#ifndef BLIS_BBN_z
+#define BLIS_BBN_z 1
+#endif
+
+#ifndef BLIS_PACKMR_s
+#define BLIS_PACKMR_s (BLIS_MR_s*BLIS_BBM_s)
+#endif
+
+#ifndef BLIS_PACKMR_d
+#define BLIS_PACKMR_d (BLIS_MR_d*BLIS_BBM_d)
+#endif
+
+#ifndef BLIS_PACKMR_c
+#define BLIS_PACKMR_c (BLIS_MR_c*BLIS_BBM_c)
+#endif
+
+#ifndef BLIS_PACKMR_z
+#define BLIS_PACKMR_z (BLIS_MR_z*BLIS_BBM_z)
+#endif
+
+#ifndef BLIS_PACKNR_s
+#define BLIS_PACKNR_s (BLIS_NR_s*BLIS_BBN_s)
+#endif
+
+#ifndef BLIS_PACKNR_d
+#define BLIS_PACKNR_d (BLIS_NR_d*BLIS_BBN_d)
+#endif
+
+#ifndef BLIS_PACKNR_c
+#define BLIS_PACKNR_c (BLIS_NR_c*BLIS_BBN_c)
+#endif
+
+#ifndef BLIS_PACKNR_z
+#define BLIS_PACKNR_z (BLIS_NR_z*BLIS_BBN_z)
+#endif
+
+#endif
+
+#endif
+
+// end bli_kernel_macro_defs.h
+#line 102 "./frame/include/blis.h"
+
+
+
 // -- Threading definitions --
 
 // begin bli_thread.h
@@ -24596,12 +25782,37 @@ BLIS_INLINE void bli_zset1ms_mxn
 struct barrier_s
 {
 	int               arity;
-	int               count;
 	struct barrier_s* dad;
-	volatile int      signal;
+
+	// We insert a cache line of padding here to eliminate false sharing between
+	// the fields above and fields below.
+	char   padding1[ BLIS_CACHE_LINE_SIZE ];
+
+	dim_t             count;
+
+	// We insert a cache line of padding here to eliminate false sharing between
+	// the fields above and fields below.
+	char   padding2[ BLIS_CACHE_LINE_SIZE ];
+
+	gint_t            signal;
+
+	// We insert a cache line of padding here to eliminate false sharing between
+	// this struct and the next one.
+	char   padding3[ BLIS_CACHE_LINE_SIZE ];
 };
 typedef struct barrier_s barrier_t;
 #endif
+#endif
+
+// Define hpx_barrier_t, which is specific to the barrier used in HPX
+// implementation. This needs to be done first since it is (potentially)
+// used within the definition of thrcomm_t below.
+
+#ifdef BLIS_ENABLE_HPX
+typedef struct hpx_barrier_t
+{
+	void* handle;
+} hpx_barrier_t;
 #endif
 
 // Define the thrcomm_t structure, which will be common to all threading
@@ -24615,6 +25826,10 @@ typedef struct thrcomm_s
 	dim_t       n_threads;
 	timpl_t     ti;
 
+	// We insert a cache line of padding here to eliminate false sharing between
+	// the fields above and fields below.
+	char   padding1[ BLIS_CACHE_LINE_SIZE ];
+
 	// NOTE: barrier_sense was originally a gint_t-based bool_t, but upon
 	// redefining bool_t as bool we discovered that some gcc __atomic built-ins
 	// don't allow the use of bool for the variables being operated upon.
@@ -24623,7 +25838,16 @@ typedef struct thrcomm_s
 	// redefining barrier_sense as a gint_t.
 	//volatile gint_t  barrier_sense;
 	gint_t barrier_sense;
+
+	// We insert a cache line of padding here to eliminate false sharing between
+	// the fields above and fields below.
+	char   padding2[ BLIS_CACHE_LINE_SIZE ];
+
 	dim_t  barrier_threads_arrived;
+
+	// We insert a cache line of padding here to eliminate false sharing between
+	// the fields above and whatever data structures follow.
+	char   padding3[ BLIS_CACHE_LINE_SIZE ];
 
 	// -- Fields specific to OpenMP --
 
@@ -24648,9 +25872,7 @@ typedef struct thrcomm_s
 	// -- Fields specific to HPX --
 
 	#ifdef BLIS_ENABLE_HPX
-	#ifdef BLIS_USE_HPX_BARRIER
-	hpx::barrier<> * barrier;
-	#endif
+	hpx_barrier_t barrier;
 	#endif
 
 } thrcomm_t;
@@ -24712,7 +25934,7 @@ void bli_thrcomm_barrier_single( dim_t tid, thrcomm_t* comm );
 #endif
 
 // end bli_thrcomm_single.h
-#line 114 "./frame/thread//bli_thrcomm.h"
+#line 150 "./frame/thread//bli_thrcomm.h"
 
 // begin bli_thrcomm_openmp.h
 #line 1 "./frame/thread//bli_thrcomm_openmp.h"
@@ -24778,7 +26000,7 @@ void       bli_thrcomm_tree_barrier( barrier_t* barack );
 #endif
 
 // end bli_thrcomm_openmp.h
-#line 115 "./frame/thread//bli_thrcomm.h"
+#line 151 "./frame/thread//bli_thrcomm.h"
 
 // begin bli_thrcomm_pthreads.h
 #line 1 "./frame/thread//bli_thrcomm_pthreads.h"
@@ -24833,7 +26055,7 @@ void bli_thrcomm_barrier_pthreads( dim_t tid, thrcomm_t* comm );
 #endif
 
 // end bli_thrcomm_pthreads.h
-#line 116 "./frame/thread//bli_thrcomm.h"
+#line 152 "./frame/thread//bli_thrcomm.h"
 
 // begin bli_thrcomm_hpx.h
 #line 1 "./frame/thread//bli_thrcomm_hpx.h"
@@ -24887,7 +26109,7 @@ void bli_thrcomm_barrier_hpx( dim_t tid, thrcomm_t* comm );
 #endif
 
 // end bli_thrcomm_hpx.h
-#line 117 "./frame/thread//bli_thrcomm.h"
+#line 153 "./frame/thread//bli_thrcomm.h"
 
 
 // Define a function pointer type for each of the functions that are
@@ -25424,8 +26646,8 @@ void bli_thread_launch_single
 
 
 // Initialization-related prototypes.
-void bli_thread_init( void );
-void bli_thread_finalize( void );
+int bli_thread_init( void );
+int bli_thread_finalize( void );
 
 // -----------------------------------------------------------------------------
 
@@ -25497,13 +26719,12 @@ BLIS_EXPORT_BLIS const char* bli_thread_get_thread_impl_str( timpl_t ti );
 BLIS_EXPORT_BLIS void    bli_thread_set_ways( dim_t jc, dim_t pc, dim_t ic, dim_t jr, dim_t ir );
 BLIS_EXPORT_BLIS void    bli_thread_set_num_threads( dim_t value );
 BLIS_EXPORT_BLIS void    bli_thread_set_thread_impl( timpl_t ti );
-
-void                     bli_thread_init_rntm_from_env( rntm_t* rntm );
+BLIS_EXPORT_BLIS void    bli_thread_reset( void );
 
 
 #endif
 // end bli_thread.h
-#line 86 "./frame/include/blis.h"
+#line 107 "./frame/include/blis.h"
 
 // begin bli_thread_range.h
 #line 1 "./frame/thread//bli_thread_range.h"
@@ -25637,7 +26858,7 @@ siz_t bli_thread_range_weighted_sub
 
 #endif
 // end bli_thread_range.h
-#line 87 "./frame/include/blis.h"
+#line 108 "./frame/include/blis.h"
 
 // begin bli_thread_range_slab_rr.h
 #line 1 "./frame/thread//bli_thread_range_slab_rr.h"
@@ -25759,7 +26980,7 @@ void bli_thread_range_quad
 #endif
 
 // end bli_thread_range_slab_rr.h
-#line 88 "./frame/include/blis.h"
+#line 109 "./frame/include/blis.h"
 
 // begin bli_thread_range_tlb.h
 #line 1 "./frame/thread//bli_thread_range_tlb.h"
@@ -25957,7 +27178,7 @@ dim_t bli_thread_range_tlb_trmm_rl_impl
 
 #endif
 // end bli_thread_range_tlb.h
-#line 89 "./frame/include/blis.h"
+#line 110 "./frame/include/blis.h"
 
 
 // begin bli_pthread.h
@@ -26262,7 +27483,7 @@ int bli_pthread_switch_off
 
 #endif // BLIS_PTHREAD_H
 // end bli_pthread.h
-#line 91 "./frame/include/blis.h"
+#line 112 "./frame/include/blis.h"
 
 
 
@@ -26323,1867 +27544,6 @@ BLIS_EXPORT_BLIS extern thrcomm_t BLIS_SINGLE_COMM;
 
 #endif
 // end bli_extern_defs.h
-#line 96 "./frame/include/blis.h"
-
-
-
-// -- BLIS architecture/kernel definitions --
-
-// begin bli_pre_ker_params.h
-#line 1 "./frame/include//bli_pre_ker_params.h"
-
-/*
-
-   BLIS
-   An object-based framework for developing high-performance BLAS-like
-   libraries.
-
-   Copyright (C) 2023, The University of Texas at Austin
-
-   Redistribution and use in source and binary forms, with or without
-   modification, are permitted provided that the following conditions are
-   met:
-    - Redistributions of source code must retain the above copyright
-      notice, this list of conditions and the following disclaimer.
-    - Redistributions in binary form must reproduce the above copyright
-      notice, this list of conditions and the following disclaimer in the
-      documentation and/or other materials provided with the distribution.
-    - Neither the name(s) of the copyright holder(s) nor the names of its
-      contributors may be used to endorse or promote products derived
-      from this software without specific prior written permission.
-
-   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-   "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-   LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-   A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
-   HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
-   SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
-   LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
-   DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
-   THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-   (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-   OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-
-*/
-
-#ifndef BLIS_PRE_KER_PARAMS_H
-#define BLIS_PRE_KER_PARAMS_H
-
-// These macros are used in bli_*_ker_prot.h and bli_*_ker_ft.h to make it
-// easy to update them in the future, if needed.
-
-#define BLIS_AUXINFO_PARAM        auxinfo_t* data
-#define BLIS_CNTX_PARAM     const cntx_t*    cntx
-
-
-#endif
-// end bli_pre_ker_params.h
-#line 101 "./frame/include/blis.h"
-
-// begin bli_l1v_ker_params.h
-#line 1 "./frame/1//bli_l1v_ker_params.h"
-
-/*
-
-   BLIS
-   An object-based framework for developing high-performance BLAS-like
-   libraries.
-
-   Copyright (C) 2014, The University of Texas at Austin
-
-   Redistribution and use in source and binary forms, with or without
-   modification, are permitted provided that the following conditions are
-   met:
-    - Redistributions of source code must retain the above copyright
-      notice, this list of conditions and the following disclaimer.
-    - Redistributions in binary form must reproduce the above copyright
-      notice, this list of conditions and the following disclaimer in the
-      documentation and/or other materials provided with the distribution.
-    - Neither the name(s) of the copyright holder(s) nor the names of its
-      contributors may be used to endorse or promote products derived
-      from this software without specific prior written permission.
-
-   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-   "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-   LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-   A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
-   HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
-   SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
-   LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
-   DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
-   THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-   (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-   OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-
-*/
-
-#ifndef BLIS_L1V_KER_PARAMS_H
-#define BLIS_L1V_KER_PARAMS_H
-
-
-#define addv_params \
-\
-             conj_t  conjx, \
-             dim_t   n, \
-       const void*   x, inc_t incx, \
-             void*   y, inc_t incy
-
-#define amaxv_params \
-\
-             dim_t   n, \
-       const void*   x, inc_t incx, \
-             dim_t*  index
-
-#define axpbyv_params \
-\
-             conj_t  conjx, \
-             dim_t   n, \
-       const void*   alpha, \
-       const void*   x, inc_t incx, \
-       const void*   beta, \
-             void*   y, inc_t incy
-
-#define axpyv_params \
-\
-             conj_t  conjx, \
-             dim_t   n, \
-       const void*   alpha, \
-       const void*   x, inc_t incx, \
-             void*   y, inc_t incy
-
-#define copyv_params \
-\
-             conj_t  conjx, \
-             dim_t   n, \
-       const void*   x, inc_t incx, \
-             void*   y, inc_t incy
-
-#define dotv_params \
-\
-             conj_t  conjx, \
-             conj_t  conjy, \
-             dim_t   n, \
-       const void*   x, inc_t incx, \
-       const void*   y, inc_t incy, \
-             void*   rho
-
-#define dotxv_params \
-\
-             conj_t  conjx, \
-             conj_t  conjy, \
-             dim_t   n, \
-       const void*   alpha, \
-       const void*   x, inc_t incx, \
-       const void*   y, inc_t incy, \
-       const void*   beta, \
-             void*   rho
-
-#define invertv_params \
-\
-             dim_t   n, \
-             void*   x, inc_t incx
-
-#define invscalv_params \
-\
-             conj_t  conjalpha, \
-             dim_t   n, \
-       const void*   alpha, \
-             void*   x, inc_t incx
-
-#define scalv_params \
-\
-             conj_t  conjalpha, \
-             dim_t   n, \
-       const void*   alpha, \
-             void*   x, inc_t incx
-
-#define scal2v_params \
-\
-             conj_t  conjx, \
-             dim_t   n, \
-       const void*   alpha, \
-       const void*   x, inc_t incx, \
-             void*   y, inc_t incy
-
-#define setv_params \
-\
-             conj_t  conjalpha, \
-             dim_t   n, \
-       const void*   alpha, \
-             void*   x, inc_t incx
-
-#define subv_params \
-\
-             conj_t  conjx, \
-             dim_t   n, \
-       const void*   x, inc_t incx, \
-             void*   y, inc_t incy
-
-#define swapv_params \
-\
-             dim_t   n, \
-             void*   x, inc_t incx, \
-             void*   y, inc_t incy
-
-#define xpbyv_params \
-\
-             conj_t  conjx, \
-             dim_t   n, \
-       const void*   x, inc_t incx, \
-       const void*   beta, \
-             void*   y, inc_t incy
-
-#endif
-
-// end bli_l1v_ker_params.h
-#line 102 "./frame/include/blis.h"
-
-// begin bli_l1f_ker_params.h
-#line 1 "./frame/1f//bli_l1f_ker_params.h"
-
-/*
-
-   BLIS
-   An object-based framework for developing high-performance BLAS-like
-   libraries.
-
-   Copyright (C) 2014, The University of Texas at Austin
-
-   Redistribution and use in source and binary forms, with or without
-   modification, are permitted provided that the following conditions are
-   met:
-    - Redistributions of source code must retain the above copyright
-      notice, this list of conditions and the following disclaimer.
-    - Redistributions in binary form must reproduce the above copyright
-      notice, this list of conditions and the following disclaimer in the
-      documentation and/or other materials provided with the distribution.
-    - Neither the name(s) of the copyright holder(s) nor the names of its
-      contributors may be used to endorse or promote products derived
-      from this software without specific prior written permission.
-
-   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-   "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-   LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-   A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
-   HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
-   SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
-   LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
-   DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
-   THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-   (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-   OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-
-*/
-
-#ifndef BLIS_L1F_KER_PARAMS_H
-#define BLIS_L1F_KER_PARAMS_H
-
-
-#define axpy2v_params \
-\
-             conj_t  conjx, \
-             conj_t  conjy, \
-             dim_t   n, \
-       const void*   alphax, \
-       const void*   alphay, \
-       const void*   x, inc_t incx, \
-       const void*   y, inc_t incy, \
-             void*   z, inc_t incz
-
-#define axpyf_params \
-\
-             conj_t  conja, \
-             conj_t  conjx, \
-             dim_t   m, \
-             dim_t   b_n, \
-       const void*   alpha, \
-       const void*   a, inc_t inca, inc_t lda, \
-       const void*   x, inc_t incx, \
-             void*   y, inc_t incy
-
-#define dotaxpyv_params \
-\
-             conj_t  conjxt, \
-             conj_t  conjx, \
-             conj_t  conjy, \
-             dim_t   m, \
-       const void*   alpha, \
-       const void*   x, inc_t incx, \
-       const void*   y, inc_t incy, \
-             void*   rho, \
-             void*   z, inc_t incz
-
-#define dotxaxpyf_params \
-\
-             conj_t  conjat, \
-             conj_t  conja, \
-             conj_t  conjw, \
-             conj_t  conjx, \
-             dim_t   m, \
-             dim_t   b_n, \
-       const void*   alpha, \
-       const void*   a, inc_t inca, inc_t lda, \
-       const void*   w, inc_t incw, \
-       const void*   x, inc_t incx, \
-       const void*   beta, \
-             void*   y, inc_t incy, \
-             void*   z, inc_t incz
-
-#define dotxf_params \
-\
-             conj_t  conjat, \
-             conj_t  conjx, \
-             dim_t   m, \
-             dim_t   b_n, \
-       const void*   alpha, \
-       const void*   a, inc_t inca, inc_t lda, \
-       const void*   x, inc_t incx, \
-       const void*   beta, \
-             void*   y, inc_t incy
-
-#endif
-
-// end bli_l1f_ker_params.h
-#line 103 "./frame/include/blis.h"
-
-// begin bli_l1m_ker_params.h
-#line 1 "./frame/1m//bli_l1m_ker_params.h"
-
-/*
-
-   BLIS
-   An object-based framework for developing high-performance BLAS-like
-   libraries.
-
-   Copyright (C) 2014, The University of Texas at Austin
-
-   Redistribution and use in source and binary forms, with or without
-   modification, are permitted provided that the following conditions are
-   met:
-    - Redistributions of source code must retain the above copyright
-      notice, this list of conditions and the following disclaimer.
-    - Redistributions in binary form must reproduce the above copyright
-      notice, this list of conditions and the following disclaimer in the
-      documentation and/or other materials provided with the distribution.
-    - Neither the name(s) of the copyright holder(s) nor the names of its
-      contributors may be used to endorse or promote products derived
-      from this software without specific prior written permission.
-
-   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-   "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-   LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-   A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
-   HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
-   SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
-   LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
-   DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
-   THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-   (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-   OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-
-*/
-
-#ifndef BLIS_L1M_KER_PARAMS_H
-#define BLIS_L1M_KER_PARAMS_H
-
-
-//
-// -- Level-1m kernel function types -------------------------------------------
-//
-
-// packm
-
-// NOTE: This is the function type for the structure-aware "kernel".
-
-#define packm_params \
-\
-             struc_t strucc, \
-             diag_t  diagc, \
-             uplo_t  uploc, \
-             conj_t  conjc, \
-             pack_t  schema, \
-             bool    invdiag, \
-             dim_t   panel_dim, \
-             dim_t   panel_len, \
-             dim_t   panel_dim_max, \
-             dim_t   panel_len_max, \
-             dim_t   panel_dim_off, \
-             dim_t   panel_len_off, \
-       const void*   kappa, \
-       const void*   c, inc_t incc, inc_t ldc, \
-             void*   p,             inc_t ldp, \
-                        inc_t is_p, \
-       const void*   params  \
-
-
-// packm_cxk (packm microkernel)
-
-#define packm_cxk_params \
-\
-             conj_t  conja, \
-             pack_t  schema, \
-             dim_t   cdim, \
-             dim_t   n, \
-             dim_t   n_max, \
-       const void*   kappa, \
-       const void*   a, inc_t inca, inc_t lda, \
-             void*   p,             inc_t ldp  \
-
-
-// unpackm_cxk kernel
-
-#define unpackm_cxk_params \
-\
-             conj_t  conja, \
-             pack_t  schema, \
-             dim_t   cdim, \
-             dim_t   n, \
-       const void*   kappa, \
-       const void*   p,             inc_t ldp, \
-             void*   a, inc_t inca, inc_t lda  \
-
-
-// packm_cxc_diag kernel
-
-#define packm_cxc_diag_params \
-\
-             struc_t struca, \
-             diag_t  diaga, \
-             uplo_t  uploa, \
-             conj_t  conja, \
-             pack_t  schema, \
-             bool    invdiag, \
-             dim_t   cdim, \
-             dim_t   n_max, \
-       const void*   kappa, \
-       const void*   a, inc_t inca, inc_t lda, \
-             void*   p,             inc_t ldp  \
-
-
-#endif
-
-// end bli_l1m_ker_params.h
-#line 104 "./frame/include/blis.h"
-
-// begin bli_l3_ukr_params.h
-#line 1 "./frame/3//bli_l3_ukr_params.h"
-
-/*
-
-   BLIS
-   An object-based framework for developing high-performance BLAS-like
-   libraries.
-
-   Copyright (C) 2014, The University of Texas at Austin
-
-   Redistribution and use in source and binary forms, with or without
-   modification, are permitted provided that the following conditions are
-   met:
-    - Redistributions of source code must retain the above copyright
-      notice, this list of conditions and the following disclaimer.
-    - Redistributions in binary form must reproduce the above copyright
-      notice, this list of conditions and the following disclaimer in the
-      documentation and/or other materials provided with the distribution.
-    - Neither the name(s) of the copyright holder(s) nor the names of its
-      contributors may be used to endorse or promote products derived
-      from this software without specific prior written permission.
-
-   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-   "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-   LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-   A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
-   HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
-   SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
-   LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
-   DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
-   THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-   (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-   OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-
-*/
-
-#ifndef BLIS_L3_UKR_PARAMS_H
-#define BLIS_L3_UKR_PARAMS_H
-
-
-#define gemm_params \
-\
-             dim_t  m, \
-             dim_t  n, \
-             dim_t  k, \
-       const void*  alpha, \
-       const void*  a, \
-       const void*  b, \
-       const void*  beta, \
-             void*  c, inc_t rs_c, inc_t cs_c
-
-#define gemmtrsm_params \
-\
-             dim_t  m, \
-             dim_t  n, \
-             dim_t  k, \
-       const void*  alpha, \
-       const void*  a1x, \
-       const void*  a11, \
-       const void*  bx1, \
-             void*  b11, \
-             void*  c11, inc_t rs_c, inc_t cs_c
-
-#define trsm_params \
-\
-       const void*  a, \
-             void*  b, \
-             void*  c, inc_t rs_c, inc_t cs_c
-
-
-#endif
-
-// end bli_l3_ukr_params.h
-#line 105 "./frame/include/blis.h"
-
-// begin bli_l3_sup_ker_params.h
-#line 1 "./frame/3//bli_l3_sup_ker_params.h"
-
-/*
-
-   BLIS
-   An object-based framework for developing high-performance BLAS-like
-   libraries.
-
-   Copyright (C) 2014, The University of Texas at Austin
-
-   Redistribution and use in source and binary forms, with or without
-   modification, are permitted provided that the following conditions are
-   met:
-    - Redistributions of source code must retain the above copyright
-      notice, this list of conditions and the following disclaimer.
-    - Redistributions in binary form must reproduce the above copyright
-      notice, this list of conditions and the following disclaimer in the
-      documentation and/or other materials provided with the distribution.
-    - Neither the name(s) of the copyright holder(s) nor the names of its
-      contributors may be used to endorse or promote products derived
-      from this software without specific prior written permission.
-
-   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-   "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-   LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-   A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
-   HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
-   SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
-   LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
-   DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
-   THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-   (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-   OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-
-*/
-
-#ifndef BLIS_L3_SUP_KER_PARAMS_H
-#define BLIS_L3_SUP_KER_PARAMS_H
-
-
-#define gemmsup_params \
-\
-             conj_t conja, \
-             conj_t conjb, \
-             dim_t  m, \
-             dim_t  n, \
-             dim_t  k, \
-       const void*  alpha, \
-       const void*  a, inc_t rs_a, inc_t cs_a, \
-       const void*  b, inc_t rs_b, inc_t cs_b, \
-       const void*  beta, \
-             void*  c, inc_t rs_c, inc_t cs_c
-
-
-#endif
-
-// end bli_l3_sup_ker_params.h
-#line 106 "./frame/include/blis.h"
-
-
-// begin bli_l1v_ker_prot.h
-#line 1 "./frame/1//bli_l1v_ker_prot.h"
-
-/*
-
-   BLIS
-   An object-based framework for developing high-performance BLAS-like
-   libraries.
-
-   Copyright (C) 2014, The University of Texas at Austin
-
-   Redistribution and use in source and binary forms, with or without
-   modification, are permitted provided that the following conditions are
-   met:
-    - Redistributions of source code must retain the above copyright
-      notice, this list of conditions and the following disclaimer.
-    - Redistributions in binary form must reproduce the above copyright
-      notice, this list of conditions and the following disclaimer in the
-      documentation and/or other materials provided with the distribution.
-    - Neither the name(s) of the copyright holder(s) nor the names of its
-      contributors may be used to endorse or promote products derived
-      from this software without specific prior written permission.
-
-   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-   "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-   LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-   A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
-   HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
-   SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
-   LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
-   DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
-   THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-   (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-   OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-
-*/
-
-#ifndef BLIS_L1V_KER_PROT_H
-#define BLIS_L1V_KER_PROT_H
-
-//
-// Define template prototypes for level-1v kernels.
-//
-
-#undef  L1VTPROT
-#define L1VTPROT( ctype, ch, funcname, opname ) \
-\
-void PASTEMAC(ch,funcname) \
-     ( \
-       PASTECH(opname,_params), \
-       BLIS_CNTX_PARAM  \
-     );
-
-#define ADDV_KER_PROT(     ctype, ch, fn )  L1VTPROT( ctype, ch, fn, addv );
-#define AMAXV_KER_PROT(    ctype, ch, fn )  L1VTPROT( ctype, ch, fn, amaxv );
-#define AXPBYV_KER_PROT(   ctype, ch, fn )  L1VTPROT( ctype, ch, fn, axpbyv );
-#define AXPYV_KER_PROT(    ctype, ch, fn )  L1VTPROT( ctype, ch, fn, axpyv );
-#define COPYV_KER_PROT(    ctype, ch, fn )  L1VTPROT( ctype, ch, fn, copyv );
-#define DOTV_KER_PROT(     ctype, ch, fn )  L1VTPROT( ctype, ch, fn, dotv );
-#define DOTXV_KER_PROT(    ctype, ch, fn )  L1VTPROT( ctype, ch, fn, dotxv );
-#define INVERTV_KER_PROT(  ctype, ch, fn )  L1VTPROT( ctype, ch, fn, invertv );
-#define INVSCALV_KER_PROT( ctype, ch, fn )  L1VTPROT( ctype, ch, fn, invscalv );
-#define SCALV_KER_PROT(    ctype, ch, fn )  L1VTPROT( ctype, ch, fn, scalv );
-#define SCAL2V_KER_PROT(   ctype, ch, fn )  L1VTPROT( ctype, ch, fn, scal2v );
-#define SETV_KER_PROT(     ctype, ch, fn )  L1VTPROT( ctype, ch, fn, setv );
-#define SUBV_KER_PROT(     ctype, ch, fn )  L1VTPROT( ctype, ch, fn, subv );
-#define SWAPV_KER_PROT(    ctype, ch, fn )  L1VTPROT( ctype, ch, fn, swapv );
-#define XPBYV_KER_PROT(    ctype, ch, fn )  L1VTPROT( ctype, ch, fn, xpbyv );
-
-
-#endif
-
-// end bli_l1v_ker_prot.h
-#line 108 "./frame/include/blis.h"
-
-// begin bli_l1f_ker_prot.h
-#line 1 "./frame/1f//bli_l1f_ker_prot.h"
-
-/*
-
-   BLIS
-   An object-based framework for developing high-performance BLAS-like
-   libraries.
-
-   Copyright (C) 2014, The University of Texas at Austin
-
-   Redistribution and use in source and binary forms, with or without
-   modification, are permitted provided that the following conditions are
-   met:
-    - Redistributions of source code must retain the above copyright
-      notice, this list of conditions and the following disclaimer.
-    - Redistributions in binary form must reproduce the above copyright
-      notice, this list of conditions and the following disclaimer in the
-      documentation and/or other materials provided with the distribution.
-    - Neither the name(s) of the copyright holder(s) nor the names of its
-      contributors may be used to endorse or promote products derived
-      from this software without specific prior written permission.
-
-   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-   "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-   LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-   A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
-   HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
-   SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
-   LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
-   DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
-   THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-   (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-   OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-
-*/
-
-#ifndef BLIS_L1F_KER_PROT_H
-#define BLIS_L1F_KER_PROT_H
-
-//
-// Define template prototypes for level-1f kernels.
-//
-
-#undef  L1FTPROT
-#define L1FTPROT( ctype, ch, funcname, opname ) \
-\
-void PASTEMAC(ch,funcname) \
-     ( \
-       PASTECH(opname,_params), \
-       BLIS_CNTX_PARAM  \
-     );
-
-#define AXPY2V_KER_PROT(    ctype, ch, fn )  L1FTPROT( ctype, ch, fn, axpy2v );
-#define AXPYF_KER_PROT(     ctype, ch, fn )  L1FTPROT( ctype, ch, fn, axpyf );
-#define DOTAXPYV_KER_PROT(  ctype, ch, fn )  L1FTPROT( ctype, ch, fn, dotaxpyv );
-#define DOTXAXPYF_KER_PROT( ctype, ch, fn )  L1FTPROT( ctype, ch, fn, dotxaxpyf );
-#define DOTXF_KER_PROT(     ctype, ch, fn )  L1FTPROT( ctype, ch, fn, dotxf );
-
-
-#endif
-
-// end bli_l1f_ker_prot.h
-#line 109 "./frame/include/blis.h"
-
-// begin bli_l1m_ker_prot.h
-#line 1 "./frame/1m//bli_l1m_ker_prot.h"
-
-/*
-
-   BLIS
-   An object-based framework for developing high-performance BLAS-like
-   libraries.
-
-   Copyright (C) 2014, The University of Texas at Austin
-
-   Redistribution and use in source and binary forms, with or without
-   modification, are permitted provided that the following conditions are
-   met:
-    - Redistributions of source code must retain the above copyright
-      notice, this list of conditions and the following disclaimer.
-    - Redistributions in binary form must reproduce the above copyright
-      notice, this list of conditions and the following disclaimer in the
-      documentation and/or other materials provided with the distribution.
-    - Neither the name(s) of the copyright holder(s) nor the names of its
-      contributors may be used to endorse or promote products derived
-      from this software without specific prior written permission.
-
-   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-   "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-   LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-   A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
-   HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
-   SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
-   LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
-   DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
-   THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-   (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-   OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-
-*/
-
-#ifndef BLIS_L1M_KER_PROT_H
-#define BLIS_L1M_KER_PROT_H
-
-//
-// Define template prototypes for level-1m kernels.
-//
-
-#undef  L1MTPROT
-#define L1MTPROT( ctype, ch, funcname, opname ) \
-\
-void PASTEMAC(ch,funcname) \
-     ( \
-       PASTECH(opname,_params), \
-       BLIS_CNTX_PARAM  \
-     );
-
-#define PACKM_KER_PROT(      ctype, ch, fn )  L1MTPROT( ctype, ch, fn, packm_cxk );
-#define UNPACKM_KER_PROT(    ctype, ch, fn )  L1MTPROT( ctype, ch, fn, unpackm_cxk );
-#define PACKM_DIAG_KER_PROT( ctype, ch, fn )  L1MTPROT( ctype, ch, fn, packm_cxc_diag );
-
-
-#endif
-
-// end bli_l1m_ker_prot.h
-#line 110 "./frame/include/blis.h"
-
-// begin bli_l3_ukr_prot.h
-#line 1 "./frame/3//bli_l3_ukr_prot.h"
-
-/*
-
-   BLIS
-   An object-based framework for developing high-performance BLAS-like
-   libraries.
-
-   Copyright (C) 2014, The University of Texas at Austin
-
-   Redistribution and use in source and binary forms, with or without
-   modification, are permitted provided that the following conditions are
-   met:
-    - Redistributions of source code must retain the above copyright
-      notice, this list of conditions and the following disclaimer.
-    - Redistributions in binary form must reproduce the above copyright
-      notice, this list of conditions and the following disclaimer in the
-      documentation and/or other materials provided with the distribution.
-    - Neither the name(s) of the copyright holder(s) nor the names of its
-      contributors may be used to endorse or promote products derived
-      from this software without specific prior written permission.
-
-   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-   "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-   LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-   A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
-   HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
-   SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
-   LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
-   DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
-   THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-   (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-   OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-
-*/
-
-#ifndef BLIS_L3_UKR_PROT_H
-#define BLIS_L3_UKR_PROT_H
-
-//
-// Define template prototypes for level-3 micro-kernels.
-//
-
-#undef  L3TPROT
-#define L3TPROT( ctype, ch, funcname, opname ) \
-\
-void PASTEMAC(ch,funcname) \
-     ( \
-       PASTECH(opname,_params), \
-       BLIS_AUXINFO_PARAM, \
-       BLIS_CNTX_PARAM  \
-     );
-
-#define GEMM_UKR_PROT(     ctype, ch, fn )  L3TPROT( ctype, ch, fn, gemm );
-#define GEMMTRSM_UKR_PROT( ctype, ch, fn )  L3TPROT( ctype, ch, fn, gemmtrsm );
-#define TRSM_UKR_PROT(     ctype, ch, fn )  L3TPROT( ctype, ch, fn, trsm );
-
-
-#endif
-
-// end bli_l3_ukr_prot.h
-#line 111 "./frame/include/blis.h"
-
-// begin bli_l3_sup_ker_prot.h
-#line 1 "./frame/3//bli_l3_sup_ker_prot.h"
-
-/*
-
-   BLIS
-   An object-based framework for developing high-performance BLAS-like
-   libraries.
-
-   Copyright (C) 2019, Advanced Micro Devices, Inc.
-
-   Redistribution and use in source and binary forms, with or without
-   modification, are permitted provided that the following conditions are
-   met:
-    - Redistributions of source code must retain the above copyright
-      notice, this list of conditions and the following disclaimer.
-    - Redistributions in binary form must reproduce the above copyright
-      notice, this list of conditions and the following disclaimer in the
-      documentation and/or other materials provided with the distribution.
-    - Neither the name(s) of the copyright holder(s) nor the names of its
-      contributors may be used to endorse or promote products derived
-      from this software without specific prior written permission.
-
-   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-   "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-   LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-   A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
-   HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
-   SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
-   LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
-   DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
-   THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-   (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-   OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-
-*/
-
-#ifndef BLIS_L3_SUP_KER_PROT_H
-#define BLIS_L3_SUP_KER_PROT_H
-
-//
-// Define template prototypes for level-3 kernels on small/unpacked matrices.
-//
-
-#undef  SUPTPROT
-#define SUPTPROT( ctype, ch, funcname, opname ) \
-\
-void PASTEMAC(ch,funcname) \
-     ( \
-       PASTECH(opname,_params), \
-       BLIS_AUXINFO_PARAM, \
-       BLIS_CNTX_PARAM  \
-     );
-
-#define GEMMSUP_KER_PROT( ctype, ch, fn )  SUPTPROT( ctype, ch, fn, gemmsup );
-
-
-#endif
-
-// end bli_l3_sup_ker_prot.h
-#line 112 "./frame/include/blis.h"
-
-
-// begin bli_arch_config_pre.h
-#line 1 "./frame/include//bli_arch_config_pre.h"
-
-/*
-
-   BLIS
-   An object-based framework for developing high-performance BLAS-like
-   libraries.
-
-   Copyright (C) 2014, The University of Texas at Austin
-
-   Redistribution and use in source and binary forms, with or without
-   modification, are permitted provided that the following conditions are
-   met:
-    - Redistributions of source code must retain the above copyright
-      notice, this list of conditions and the following disclaimer.
-    - Redistributions in binary form must reproduce the above copyright
-      notice, this list of conditions and the following disclaimer in the
-      documentation and/or other materials provided with the distribution.
-    - Neither the name(s) of the copyright holder(s) nor the names of its
-      contributors may be used to endorse or promote products derived
-      from this software without specific prior written permission.
-
-   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-   "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-   LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-   A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
-   HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
-   SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
-   LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
-   DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
-   THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-   (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-   OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-
-*/
-
-#ifndef BLIS_ARCH_CONFIG_PRE_H
-#define BLIS_ARCH_CONFIG_PRE_H
-
-
-// -- Naming-related kernel definitions ----------------------------------------
-
-// The default suffix appended to reference kernels.
-#define BLIS_REF_SUFFIX  _ref
-
-// A suffix used for labeling certain induced method aware functions.
-#define BLIS_IND_SUFFIX  _ind
-
-// Add an underscore to the BLIS kernel set string, if it was defined.
-#ifdef  BLIS_CNAME
-#define BLIS_CNAME_INFIX  PASTECH(_,BLIS_CNAME)
-#endif
-
-// Combine the CNAME and _ref for convenience to the code that defines
-// reference kernels.
-//#define BLIS_CNAME_REF_SUFFIX  PASTECH2(_,BLIS_CNAME,BLIS_REF_SUFFIX)
-
-// -- Prototype-generating macro definitions -----------------------------------
-
-// Prototype-generating macro for bli_cntx_init_<arch>*() functions.
-#define CNTX_INIT_PROTS( archname ) \
-\
-void PASTEMAC(cntx_init_,archname) \
-     ( \
-       cntx_t* cntx \
-     ); \
-void PASTEMAC2(cntx_init_,archname,BLIS_REF_SUFFIX) \
-     ( \
-       cntx_t* cntx \
-     ); \
-void PASTEMAC2(cntx_init_,archname,BLIS_IND_SUFFIX) \
-     ( \
-       ind_t   method, \
-       cntx_t* cntx \
-     );
-
-
-#endif
-
-// end bli_arch_config_pre.h
-#line 114 "./frame/include/blis.h"
-
-// begin bli_arch_config.h
-#line 1 "./frame/include//bli_arch_config.h"
-
-/*
-
-   BLIS
-   An object-based framework for developing high-performance BLAS-like
-   libraries.
-
-   Copyright (C) 2014, The University of Texas at Austin
-   Copyright (C) 2016, Hewlett Packard Enterprise Development LP
-   Copyright (C) 2019 - 2020, Advanced Micro Devices, Inc.
-
-   Redistribution and use in source and binary forms, with or without
-   modification, are permitted provided that the following conditions are
-   met:
-    - Redistributions of source code must retain the above copyright
-      notice, this list of conditions and the following disclaimer.
-    - Redistributions in binary form must reproduce the above copyright
-      notice, this list of conditions and the following disclaimer in the
-      documentation and/or other materials provided with the distribution.
-    - Neither the name(s) of the copyright holder(s) nor the names of its
-      contributors may be used to endorse or promote products derived
-      from this software without specific prior written permission.
-
-   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-   "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-   LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-   A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
-   HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
-   SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
-   LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
-   DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
-   THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-   (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-   OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-
-*/
-
-#ifndef BLIS_ARCH_CONFIG_H
-#define BLIS_ARCH_CONFIG_H
-
-//
-// -- Context initialization prototypes ----------------------------------------
-//
-
-// -- Intel64 architectures --
-
-#ifdef BLIS_CONFIG_SKX
-CNTX_INIT_PROTS( skx )
-#endif
-#ifdef BLIS_CONFIG_KNL
-CNTX_INIT_PROTS( knl )
-#endif
-#ifdef BLIS_CONFIG_KNC
-CNTX_INIT_PROTS( knc )
-#endif
-#ifdef BLIS_CONFIG_HASWELL
-CNTX_INIT_PROTS( haswell )
-#endif
-#ifdef BLIS_CONFIG_SANDYBRIDGE
-CNTX_INIT_PROTS( sandybridge )
-#endif
-#ifdef BLIS_CONFIG_PENRYN
-CNTX_INIT_PROTS( penryn )
-#endif
-
-// -- AMD64 architectures --
-
-#ifdef BLIS_CONFIG_ZEN3
-CNTX_INIT_PROTS( zen3 )
-#endif
-#ifdef BLIS_CONFIG_ZEN2
-CNTX_INIT_PROTS( zen2 )
-#endif
-#ifdef BLIS_CONFIG_ZEN
-CNTX_INIT_PROTS( zen )
-#endif
-#ifdef BLIS_CONFIG_EXCAVATOR
-CNTX_INIT_PROTS( excavator )
-#endif
-#ifdef BLIS_CONFIG_STEAMROLLER
-CNTX_INIT_PROTS( steamroller )
-#endif
-#ifdef BLIS_CONFIG_PILEDRIVER
-CNTX_INIT_PROTS( piledriver )
-#endif
-#ifdef BLIS_CONFIG_BULLDOZER
-CNTX_INIT_PROTS( bulldozer )
-#endif
-
-// -- ARM architectures --
-
-#ifdef BLIS_CONFIG_ARMSVE
-CNTX_INIT_PROTS( armsve )
-#endif
-#ifdef BLIS_CONFIG_A64FX
-CNTX_INIT_PROTS( a64fx )
-#endif
-#ifdef BLIS_CONFIG_FIRESTORM
-CNTX_INIT_PROTS( firestorm )
-#endif
-#ifdef BLIS_CONFIG_THUNDERX2
-CNTX_INIT_PROTS( thunderx2 )
-#endif
-#ifdef BLIS_CONFIG_CORTEXA57
-CNTX_INIT_PROTS( cortexa57 )
-#endif
-#ifdef BLIS_CONFIG_CORTEXA53
-CNTX_INIT_PROTS( cortexa53 )
-#endif
-#ifdef BLIS_CONFIG_CORTEXA15
-CNTX_INIT_PROTS( cortexa15 )
-#endif
-#ifdef BLIS_CONFIG_CORTEXA9
-CNTX_INIT_PROTS( cortexa9 )
-#endif
-
-// -- IBM Power --
-
-#ifdef BLIS_CONFIG_POWER10
-CNTX_INIT_PROTS( power10 )
-#endif
-#ifdef BLIS_CONFIG_POWER9
-CNTX_INIT_PROTS( power9 )
-#endif
-#ifdef BLIS_CONFIG_POWER7
-CNTX_INIT_PROTS( power7 )
-#endif
-
-// -- IBM BG/Q --
-
-#ifdef BLIS_CONFIG_BGQ
-CNTX_INIT_PROTS( bgq )
-#endif
-
-// -- Generic --
-
-#ifdef BLIS_CONFIG_GENERIC
-CNTX_INIT_PROTS( generic )
-#endif
-
-
-//
-// -- Architecture family-specific headers -------------------------------------
-//
-
-// -- x86_64 families --
-
-#ifdef BLIS_FAMILY_INTEL64
-#include "bli_family_intel64.h" // skipped
-#endif
-#ifdef BLIS_FAMILY_AMD64
-#include "bli_family_amd64.h" // skipped
-#endif
-#ifdef BLIS_FAMILY_AMD64_LEGACY
-#include "bli_family_amd64_legacy.h" // skipped
-#endif
-#ifdef BLIS_FAMILY_X86_64
-#include "bli_family_x86_64.h" // skipped
-#endif
-
-// -- Intel64 architectures --
-
-#ifdef BLIS_FAMILY_SKX
-#include "bli_family_skx.h" // skipped
-#endif
-#ifdef BLIS_FAMILY_KNL
-#include "bli_family_knl.h" // skipped
-#endif
-#ifdef BLIS_FAMILY_KNC
-#include "bli_family_knc.h" // skipped
-#endif
-#ifdef BLIS_FAMILY_HASWELL
-#include "bli_family_haswell.h" // skipped
-#endif
-#ifdef BLIS_FAMILY_SANDYBRIDGE
-#include "bli_family_sandybridge.h" // skipped
-#endif
-#ifdef BLIS_FAMILY_PENRYN
-#include "bli_family_penryn.h" // skipped
-#endif
-
-// -- AMD64 architectures --
-
-#ifdef BLIS_FAMILY_ZEN3
-#include "bli_family_zen3.h" // skipped
-#endif
-#ifdef BLIS_FAMILY_ZEN2
-#include "bli_family_zen2.h" // skipped
-#endif
-#ifdef BLIS_FAMILY_ZEN
-#include "bli_family_zen.h" // skipped
-#endif
-#ifdef BLIS_FAMILY_EXCAVATOR
-#include "bli_family_excavator.h" // skipped
-#endif
-#ifdef BLIS_FAMILY_STEAMROLLER
-#include "bli_family_steamroller.h" // skipped
-#endif
-#ifdef BLIS_FAMILY_PILEDRIVER
-#include "bli_family_piledriver.h" // skipped
-#endif
-#ifdef BLIS_FAMILY_BULLDOZER
-#include "bli_family_bulldozer.h" // skipped
-#endif
-
-// -- ARM families --
-#ifdef BLIS_FAMILY_ARM64
-#include "bli_family_arm64.h" // skipped
-#endif
-#ifdef BLIS_FAMILY_ARM32
-#include "bli_family_arm32.h" // skipped
-#endif
-
-// -- ARM architectures --
-
-#ifdef BLIS_FAMILY_ARMSVE
-#include "bli_family_armsve.h" // skipped
-#endif
-#ifdef BLIS_FAMILY_A64FX
-#include "bli_family_a64fx.h" // skipped
-#endif
-#ifdef BLIS_FAMILY_FIRESTORM
-#include "bli_family_firestorm.h" // skipped
-#endif
-#ifdef BLIS_FAMILY_THUNDERX2
-#include "bli_family_thunderx2.h" // skipped
-#endif
-#ifdef BLIS_FAMILY_CORTEXA57
-// begin bli_family_cortexa57.h
-#line 1 "./config/cortexa57//bli_family_cortexa57.h"
-
-/*
-
-   BLIS
-   An object-based framework for developing high-performance BLAS-like
-   libraries.
-
-   Copyright (C) 2014, The University of Texas at Austin
-
-   Redistribution and use in source and binary forms, with or without
-   modification, are permitted provided that the following conditions are
-   met:
-    - Redistributions of source code must retain the above copyright
-      notice, this list of conditions and the following disclaimer.
-    - Redistributions in binary form must reproduce the above copyright
-      notice, this list of conditions and the following disclaimer in the
-      documentation and/or other materials provided with the distribution.
-    - Neither the name(s) of the copyright holder(s) nor the names of its
-      contributors may be used to endorse or promote products derived
-      from this software without specific prior written permission.
-
-   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-   "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-   LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-   A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
-   HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
-   SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
-   LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
-   DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
-   THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-   (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-   OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-
-*/
-
-//#ifndef BLIS_FAMILY_H
-//#define BLIS_FAMILY_H
-
-
-// -- MEMORY ALLOCATION --------------------------------------------------------
-
-#define BLIS_SIMD_ALIGN_SIZE           16
-
-
-#if 0
-// -- LEVEL-3 MICRO-KERNEL CONSTANTS -------------------------------------------
-
-#define BLIS_SGEMM_UKERNEL             bli_sgemm_opt_8x12
-#define BLIS_DEFAULT_MR_S              8
-#define BLIS_DEFAULT_NR_S              12
-#define BLIS_DEFAULT_MC_S              120 //1536 //336 //416 // 1280 //160 // 160 // 160 //2048 //336 
-#define BLIS_DEFAULT_KC_S              640 //1536 //336 //704 //1280 //672 //528 // 856 //2048 //528 
-#define BLIS_DEFAULT_NC_S              3072
-
-#define BLIS_DGEMM_UKERNEL             bli_dgemm_opt_6x8
-#define BLIS_DEFAULT_MR_D              6
-#define BLIS_DEFAULT_NR_D              8
-#define BLIS_DEFAULT_MC_D              120 //1536 //160 //80 //176 
-#define BLIS_DEFAULT_KC_D              240 //1536 //304 //336 //368 
-#define BLIS_DEFAULT_NC_D              3072
-
-#define BLIS_DEFAULT_MR_C              8
-#define BLIS_DEFAULT_NR_C              4
-#define BLIS_DEFAULT_MC_C              64
-#define BLIS_DEFAULT_KC_C              128
-#define BLIS_DEFAULT_NC_C              4096
-
-#define BLIS_DEFAULT_MR_Z              8
-#define BLIS_DEFAULT_NR_Z              4
-#define BLIS_DEFAULT_MC_Z              64
-#define BLIS_DEFAULT_KC_Z              128
-#define BLIS_DEFAULT_NC_Z              4096
-#endif
-
-
-//#endif
-
-// end bli_family_cortexa57.h
-#line 229 "./frame/include//bli_arch_config.h"
-
-#endif
-#ifdef BLIS_FAMILY_CORTEXA53
-#include "bli_family_cortexa53.h" // skipped
-#endif
-#ifdef BLIS_FAMILY_CORTEXA15
-#include "bli_family_cortexa15.h" // skipped
-#endif
-#ifdef BLIS_FAMILY_CORTEXA9
-#include "bli_family_cortexa9.h" // skipped
-#endif
-
-// -- IBM Power families --
-#ifdef BLIS_FAMILY_POWER
-#include "bli_family_power.h" // skipped
-#endif
-
-// -- IBM Power architectures --
-
-#ifdef BLIS_FAMILY_POWER10
-#include "bli_family_power10.h" // skipped
-#endif
-#ifdef BLIS_FAMILY_POWER9
-#include "bli_family_power9.h" // skipped
-#endif
-#ifdef BLIS_FAMILY_POWER7
-#include "bli_family_power7.h" // skipped
-#endif
-
-// -- IBM BG/Q --
-
-#ifdef BLIS_FAMILY_BGQ
-#include "bli_family_bgq.h" // skipped
-#endif
-
-// -- Generic --
-
-#ifdef BLIS_FAMILY_GENERIC
-#include "bli_family_generic.h" // skipped
-#endif
-
-
-//
-// -- kernel set prototypes ----------------------------------------------------
-//
-
-// -- Intel64 architectures --
-#ifdef BLIS_KERNELS_SKX
-#include "bli_kernels_skx.h" // skipped
-#endif
-#ifdef BLIS_KERNELS_KNL
-#include "bli_kernels_knl.h" // skipped
-#endif
-#ifdef BLIS_KERNELS_KNC
-#include "bli_kernels_knc.h" // skipped
-#endif
-#ifdef BLIS_KERNELS_HASWELL
-#include "bli_kernels_haswell.h" // skipped
-#endif
-#ifdef BLIS_KERNELS_SANDYBRIDGE
-#include "bli_kernels_sandybridge.h" // skipped
-#endif
-#ifdef BLIS_KERNELS_PENRYN
-#include "bli_kernels_penryn.h" // skipped
-#endif
-
-// -- AMD64 architectures --
-
-#ifdef BLIS_KERNELS_ZEN2
-#include "bli_kernels_zen2.h" // skipped
-#endif
-#ifdef BLIS_KERNELS_ZEN
-#include "bli_kernels_zen.h" // skipped
-#endif
-//#ifdef BLIS_KERNELS_EXCAVATOR
-//#include "bli_kernels_excavator.h"
-//#endif
-//#ifdef BLIS_KERNELS_STEAMROLLER
-//#include "bli_kernels_steamroller.h"
-//#endif
-#ifdef BLIS_KERNELS_PILEDRIVER
-#include "bli_kernels_piledriver.h" // skipped
-#endif
-#ifdef BLIS_KERNELS_BULLDOZER
-#include "bli_kernels_bulldozer.h" // skipped
-#endif
-
-// -- ARM architectures --
-
-#ifdef BLIS_KERNELS_ARMSVE
-#include "bli_kernels_armsve.h" // skipped
-#endif
-#ifdef BLIS_KERNELS_ARMV8A
-// begin bli_kernels_armv8a.h
-#line 1 "./kernels/armv8a//bli_kernels_armv8a.h"
-
-/*
-
-   BLIS
-   An object-based framework for developing high-performance BLAS-like
-   libraries.
-
-   Copyright (C) 2014, The University of Texas at Austin
-
-   Redistribution and use in source and binary forms, with or without
-   modification, are permitted provided that the following conditions are
-   met:
-    - Redistributions of source code must retain the above copyright
-      notice, this list of conditions and the following disclaimer.
-    - Redistributions in binary form must reproduce the above copyright
-      notice, this list of conditions and the following disclaimer in the
-      documentation and/or other materials provided with the distribution.
-    - Neither the name(s) of the copyright holder(s) nor the names of its
-      contributors may be used to endorse or promote products derived
-      from this software without specific prior written permission.
-
-   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-   "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-   LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-   A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
-   HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
-   SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
-   LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
-   DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
-   THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-   (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-   OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-
-*/
-
-PACKM_KER_PROT( float,    s, packm_armv8a_int_8xk )
-PACKM_KER_PROT( float,    s, packm_armv8a_int_12xk )
-PACKM_KER_PROT( double,   d, packm_armv8a_int_6xk )
-PACKM_KER_PROT( double,   d, packm_armv8a_int_8xk )
-
-GEMM_UKR_PROT( float,    s, gemm_armv8a_asm_8x12 )
-GEMM_UKR_PROT( double,   d, gemm_armv8a_asm_6x8 )
-GEMM_UKR_PROT( float,    s, gemm_armv8a_asm_12x8r )
-GEMM_UKR_PROT( double,   d, gemm_armv8a_asm_8x6r )
-// GEMM_UKR_PROT( double,   d, gemm_armv8a_asm_6x8r )
-// GEMM_UKR_PROT( double,   d, gemm_armv8a_asm_8x4 )
-// GEMM_UKR_PROT( double,   d, gemm_armv8a_asm_4x4 )
-
-GEMMSUP_KER_PROT( double,   d, gemmsup_rd_armv8a_asm_6x8n )
-GEMMSUP_KER_PROT( double,   d, gemmsup_rd_armv8a_asm_6x8m )
-GEMMSUP_KER_PROT( double,   d, gemmsup_rv_armv8a_asm_6x8n )
-GEMMSUP_KER_PROT( double,   d, gemmsup_rv_armv8a_asm_6x8m )
-GEMMSUP_KER_PROT( double,   d, gemmsup_rv_armv8a_asm_6x7m )
-GEMMSUP_KER_PROT( double,   d, gemmsup_rv_armv8a_asm_6x6m )
-GEMMSUP_KER_PROT( double,   d, gemmsup_rv_armv8a_asm_6x5m )
-GEMMSUP_KER_PROT( double,   d, gemmsup_rv_armv8a_asm_5x8n )
-GEMMSUP_KER_PROT( double,   d, gemmsup_rv_armv8a_asm_4x8n )
-GEMMSUP_KER_PROT( double,   d, gemmsup_rv_armv8a_asm_4x8m )
-GEMMSUP_KER_PROT( double,   d, gemmsup_rv_armv8a_asm_8x4m )
-
-GEMMSUP_KER_PROT( double,   d, gemmsup_rd_armv8a_int_2x8 )
-GEMMSUP_KER_PROT( double,   d, gemmsup_rd_armv8a_int_3x4 )
-GEMMSUP_KER_PROT( double,   d, gemmsup_rd_armv8a_asm_3x4 )
-GEMMSUP_KER_PROT( double,   d, gemmsup_rd_armv8a_asm_6x3 )
-
-GEMMSUP_KER_PROT( double,   d, gemmsup_rv_armv8a_int_6x4mn )
-GEMMSUP_KER_PROT( double,   d, gemmsup_rv_armv8a_int_3x8mn )
-
-// end bli_kernels_armv8a.h
-#line 322 "./frame/include//bli_arch_config.h"
-
-#endif
-#ifdef BLIS_KERNELS_ARMV7A
-#include "bli_kernels_armv7a.h" // skipped
-#endif
-
-// -- IBM Power --
-
-#ifdef BLIS_KERNELS_POWER10
-#include "bli_kernels_power10.h" // skipped
-#endif
-#ifdef BLIS_KERNELS_POWER9
-#include "bli_kernels_power9.h" // skipped
-#endif
-#ifdef BLIS_KERNELS_POWER7
-#include "bli_kernels_power7.h" // skipped
-#endif
-
-// -- IBM BG/Q --
-
-#ifdef BLIS_KERNELS_BGQ
-#include "bli_kernels_bgq.h" // skipped
-#endif
-
-
-
-#endif
-
-// end bli_arch_config.h
-#line 115 "./frame/include/blis.h"
-
-
-// begin bli_kernel_macro_defs.h
-#line 1 "./frame/include//bli_kernel_macro_defs.h"
-
-/*
-
-   BLIS
-   An object-based framework for developing high-performance BLAS-like
-   libraries.
-
-   Copyright (C) 2014, The University of Texas at Austin
-
-   Redistribution and use in source and binary forms, with or without
-   modification, are permitted provided that the following conditions are
-   met:
-    - Redistributions of source code must retain the above copyright
-      notice, this list of conditions and the following disclaimer.
-    - Redistributions in binary form must reproduce the above copyright
-      notice, this list of conditions and the following disclaimer in the
-      documentation and/or other materials provided with the distribution.
-    - Neither the name(s) of the copyright holder(s) nor the names of its
-      contributors may be used to endorse or promote products derived
-      from this software without specific prior written permission.
-
-   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-   "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-   LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-   A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
-   HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
-   SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
-   LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
-   DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
-   THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-   (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-   OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-
-*/
-
-#ifndef BLIS_KERNEL_MACRO_DEFS_H
-#define BLIS_KERNEL_MACRO_DEFS_H
-
-
-// -- Define default threading parameters --------------------------------------
-
-// -- Conventional (large code path) values --
-
-// These BLIS_THREAD_RATIO_? macros distort the amount of work in the m and n
-// dimensions for the purposes of factorizing the total number of threads into
-// ways of parallelism in the ic and jc loops. See bli_rntm.c to see how these
-// macros are used.
-#ifndef BLIS_THREAD_RATIO_M
-#define BLIS_THREAD_RATIO_M     1
-#endif
-
-#ifndef BLIS_THREAD_RATIO_N
-#define BLIS_THREAD_RATIO_N     1
-#endif
-
-// These BLIS_THREAD_MAX_?R macros place a ceiling on the maximum amount of
-// parallelism allowed when performing automatic factorization. See bli_rntm.c
-// to see how these macros are used.
-#ifndef BLIS_THREAD_MAX_IR
-#define BLIS_THREAD_MAX_IR      1
-#endif
-
-#ifndef BLIS_THREAD_MAX_JR
-#define BLIS_THREAD_MAX_JR      4
-#endif
-
-#if 0
-// -- Skinny/small possibly-unpacked (sup code path) values --
-
-#ifndef BLIS_THREAD_SUP_RATIO_M
-#define BLIS_THREAD_SUP_RATIO_M   1
-#endif
-
-#ifndef BLIS_THREAD_SUP_RATIO_N
-#define BLIS_THREAD_SUP_RATIO_N   2
-#endif
-
-#ifndef BLIS_THREAD_SUP_MAX_IR
-#define BLIS_THREAD_SUP_MAX_IR    1
-#endif
-
-#ifndef BLIS_THREAD_SUP_MAX_JR
-#define BLIS_THREAD_SUP_MAX_JR    8
-#endif
-#endif
-
-
-// -- Memory allocation --------------------------------------------------------
-
-// hbwmalloc.h provides hbw_malloc() and hbw_free() on systems with
-// libmemkind. But disable use of libmemkind if BLIS_DISABLE_MEMKIND
-// was explicitly defined.
-#ifdef BLIS_DISABLE_MEMKIND
-  #undef BLIS_ENABLE_MEMKIND
-#endif
-#ifdef BLIS_ENABLE_MEMKIND
-#include <hbwmalloc.h> // skipped
-#endif
-
-// Memory allocation functions. These macros define the three types of
-// malloc()-style functions, and their free() counterparts: one for each
-// type of memory to be allocated.
-// NOTE: ANY ALTERNATIVE TO malloc()/free() USED FOR ANY OF THE FOLLOWING
-// THREE PAIRS OF MACROS MUST USE THE SAME FUNCTION PROTOTYPE AS malloc()
-// and free():
-//
-//   void* malloc( size_t size );
-//   void  free( void* p );
-//
-
-// This allocation function is called to allocate memory for blocks within
-// BLIS's internal memory pools.
-#ifndef BLIS_MALLOC_POOL
-  // If use of libmemkind was enabled at configure-time, the default
-  // memory allocation function for memory pools should be hbw_malloc()
-  // instead of malloc().
-  #ifdef  BLIS_ENABLE_MEMKIND
-  #define BLIS_MALLOC_POOL               hbw_malloc
-  #else
-  #define BLIS_MALLOC_POOL               malloc
-  #endif
-#endif
-
-#ifndef BLIS_FREE_POOL
-  // If use of libmemkind was enabled at configure-time, the default
-  // memory deallocation function for memory pools should be hbw_free()
-  // instead of free().
-  #ifdef  BLIS_ENABLE_MEMKIND
-  #define BLIS_FREE_POOL                 hbw_free
-  #else
-  #define BLIS_FREE_POOL                 free
-  #endif
-#endif
-
-// This allocation function is called to allocate memory for internally-
-// used objects and structures, such as control tree nodes.
-#ifndef BLIS_MALLOC_INTL
-#define BLIS_MALLOC_INTL                 malloc
-#endif
-
-#ifndef BLIS_FREE_INTL
-#define BLIS_FREE_INTL                   free
-#endif
-
-// This allocation function is called to allocate memory for objects
-// created by user-level API functions, such as bli_obj_create().
-#ifndef BLIS_MALLOC_USER
-#define BLIS_MALLOC_USER                 malloc
-#endif
-
-#ifndef BLIS_FREE_USER
-#define BLIS_FREE_USER                   free
-#endif
-
-
-// -- Other system-related definitions -----------------------------------------
-
-// Size of a virtual memory page. This is used to align blocks within the
-// memory pools.
-#ifndef BLIS_PAGE_SIZE
-#define BLIS_PAGE_SIZE                   4096
-#endif
-
-// The maximum number of named SIMD vector registers available for use.
-// When configuring with umbrella configuration families, this should be
-// set to the maximum number of registers across all sub-configurations in
-// the family.
-#ifndef BLIS_SIMD_MAX_NUM_REGISTERS
-#define BLIS_SIMD_MAX_NUM_REGISTERS      32
-#endif
-
-// The maximum size (in bytes) of each SIMD vector.
-// When configuring with umbrella configuration families, this should be
-// set to the maximum SIMD size across all sub-configurations in the family.
-#ifndef BLIS_SIMD_MAX_SIZE
-#define BLIS_SIMD_MAX_SIZE               64
-#endif
-
-// Alignment size (in bytes) needed by the instruction set for aligned
-// SIMD/vector instructions.
-#ifndef BLIS_SIMD_ALIGN_SIZE
-#define BLIS_SIMD_ALIGN_SIZE             BLIS_SIMD_MAX_SIZE
-#endif
-
-// The maximum size in bytes of local stack buffers within macro-kernel
-// functions. These buffers are usually used to store a temporary copy
-// of a single microtile. The reason we multiply by 2 is to handle induced
-// methods, where we use real domain register blocksizes in units of
-// complex elements. Specifically, the macro-kernels will need this larger
-// micro-tile footprint, even though the virtual micro-kernels will only
-// ever be writing to half (real or imaginary part) at a time.
-#ifndef BLIS_STACK_BUF_MAX_SIZE
-#define BLIS_STACK_BUF_MAX_SIZE          ( BLIS_SIMD_MAX_NUM_REGISTERS * \
-                                           BLIS_SIMD_MAX_SIZE * 2 )
-#endif
-
-// Alignment size used to align local stack buffers within macro-kernel
-// functions.
-#ifndef BLIS_STACK_BUF_ALIGN_SIZE
-#define BLIS_STACK_BUF_ALIGN_SIZE        BLIS_SIMD_ALIGN_SIZE
-#endif
-
-// Alignment size used when allocating memory via BLIS_MALLOC_USER.
-// To disable heap alignment, set this to 1.
-#ifndef BLIS_HEAP_ADDR_ALIGN_SIZE
-#define BLIS_HEAP_ADDR_ALIGN_SIZE        BLIS_SIMD_ALIGN_SIZE
-#endif
-
-// Alignment size used when sizing leading dimensions of memory allocated
-// via BLIS_MALLOC_USER.
-#ifndef BLIS_HEAP_STRIDE_ALIGN_SIZE
-#define BLIS_HEAP_STRIDE_ALIGN_SIZE      BLIS_SIMD_ALIGN_SIZE
-#endif
-
-// Alignment sizes used when allocating blocks to the internal memory
-// pool, via BLIS_MALLOC_POOL.
-#ifndef BLIS_POOL_ADDR_ALIGN_SIZE_A
-#define BLIS_POOL_ADDR_ALIGN_SIZE_A      BLIS_PAGE_SIZE
-#endif
-
-#ifndef BLIS_POOL_ADDR_ALIGN_SIZE_B
-#define BLIS_POOL_ADDR_ALIGN_SIZE_B      BLIS_PAGE_SIZE
-#endif
-
-#ifndef BLIS_POOL_ADDR_ALIGN_SIZE_C
-#define BLIS_POOL_ADDR_ALIGN_SIZE_C      BLIS_PAGE_SIZE
-#endif
-
-#ifndef BLIS_POOL_ADDR_ALIGN_SIZE_GEN
-#define BLIS_POOL_ADDR_ALIGN_SIZE_GEN    BLIS_PAGE_SIZE
-#endif
-
-// Offsets from alignment specified by BLIS_POOL_ADDR_ALIGN_SIZE_*.
-#ifndef BLIS_POOL_ADDR_OFFSET_SIZE_A
-#define BLIS_POOL_ADDR_OFFSET_SIZE_A     0
-#endif
-
-#ifndef BLIS_POOL_ADDR_OFFSET_SIZE_B
-#define BLIS_POOL_ADDR_OFFSET_SIZE_B     0
-#endif
-
-#ifndef BLIS_POOL_ADDR_OFFSET_SIZE_C
-#define BLIS_POOL_ADDR_OFFSET_SIZE_C     0
-#endif
-
-#ifndef BLIS_POOL_ADDR_OFFSET_SIZE_GEN
-#define BLIS_POOL_ADDR_OFFSET_SIZE_GEN   0
-#endif
-
-
-// -- MR and NR blocksizes (only for reference kernels) ------------------------
-
-// The build system defines BLIS_IN_REF_KERNEL, but only when compiling
-// reference kernels. By using compile-time constants for MR and NR, the
-// compiler can perform certain optimizations, such as unrolling and
-// vectorization, that would not be otherwise be possible.
-#ifdef BLIS_IN_REF_KERNEL
-
-#ifndef BLIS_MR_s
-#define BLIS_MR_s 4
-#endif
-
-#ifndef BLIS_MR_d
-#define BLIS_MR_d 4
-#endif
-
-#ifndef BLIS_MR_c
-#define BLIS_MR_c 4
-#endif
-
-#ifndef BLIS_MR_z
-#define BLIS_MR_z 4
-#endif
-
-#ifndef BLIS_NR_s
-#define BLIS_NR_s 16
-#endif
-
-#ifndef BLIS_NR_d
-#define BLIS_NR_d 8
-#endif
-
-#ifndef BLIS_NR_c
-#define BLIS_NR_c 8
-#endif
-
-#ifndef BLIS_NR_z
-#define BLIS_NR_z 4
-#endif
-
-#ifndef BLIS_BBM_s
-#define BLIS_BBM_s 1
-#endif
-
-#ifndef BLIS_BBM_d
-#define BLIS_BBM_d 1
-#endif
-
-#ifndef BLIS_BBM_c
-#define BLIS_BBM_c 1
-#endif
-
-#ifndef BLIS_BBM_z
-#define BLIS_BBM_z 1
-#endif
-
-#ifndef BLIS_BBN_s
-#define BLIS_BBN_s 1
-#endif
-
-#ifndef BLIS_BBN_d
-#define BLIS_BBN_d 1
-#endif
-
-#ifndef BLIS_BBN_c
-#define BLIS_BBN_c 1
-#endif
-
-#ifndef BLIS_BBN_z
-#define BLIS_BBN_z 1
-#endif
-
-#ifndef BLIS_PACKMR_s
-#define BLIS_PACKMR_s (BLIS_MR_s*BLIS_BBM_s)
-#endif
-
-#ifndef BLIS_PACKMR_d
-#define BLIS_PACKMR_d (BLIS_MR_d*BLIS_BBM_d)
-#endif
-
-#ifndef BLIS_PACKMR_c
-#define BLIS_PACKMR_c (BLIS_MR_c*BLIS_BBM_c)
-#endif
-
-#ifndef BLIS_PACKMR_z
-#define BLIS_PACKMR_z (BLIS_MR_z*BLIS_BBM_z)
-#endif
-
-#ifndef BLIS_PACKNR_s
-#define BLIS_PACKNR_s (BLIS_NR_s*BLIS_BBN_s)
-#endif
-
-#ifndef BLIS_PACKNR_d
-#define BLIS_PACKNR_d (BLIS_NR_d*BLIS_BBN_d)
-#endif
-
-#ifndef BLIS_PACKNR_c
-#define BLIS_PACKNR_c (BLIS_NR_c*BLIS_BBN_c)
-#endif
-
-#ifndef BLIS_PACKNR_z
-#define BLIS_PACKNR_z (BLIS_NR_z*BLIS_BBN_z)
-#endif
-
-#endif
-
-#endif
-
-// end bli_kernel_macro_defs.h
 #line 117 "./frame/include/blis.h"
 
 
@@ -28774,14 +28134,15 @@ BLIS_INLINE void bli_blksz_copy
 	*b_dst = *b_src;
 }
 
-BLIS_INLINE void bli_blksz_copy_if_pos
+BLIS_INLINE void bli_blksz_copy_if_nonneg
      (
        const blksz_t* b_src,
              blksz_t* b_dst
      )
 {
-	// Copy the blocksize values over to b_dst one-by-one so that
-	// we can skip the ones that are non-positive.
+	// Copy the blocksize values over to b_dst one-by-one. Note that we
+	// only copy valuse that are zero or positive (and skip copying any
+	// values that are negative).
 
 	const dim_t v_s = bli_blksz_get_def( BLIS_FLOAT,    b_src );
 	const dim_t v_d = bli_blksz_get_def( BLIS_DOUBLE,   b_src );
@@ -28793,15 +28154,15 @@ BLIS_INLINE void bli_blksz_copy_if_pos
 	const dim_t e_c = bli_blksz_get_max( BLIS_SCOMPLEX, b_src );
 	const dim_t e_z = bli_blksz_get_max( BLIS_DCOMPLEX, b_src );
 
-	if ( v_s > 0 ) bli_blksz_set_def( v_s, BLIS_FLOAT,    b_dst );
-	if ( v_d > 0 ) bli_blksz_set_def( v_d, BLIS_DOUBLE,   b_dst );
-	if ( v_c > 0 ) bli_blksz_set_def( v_c, BLIS_SCOMPLEX, b_dst );
-	if ( v_z > 0 ) bli_blksz_set_def( v_z, BLIS_DCOMPLEX, b_dst );
+	if ( v_s >= 0 ) bli_blksz_set_def( v_s, BLIS_FLOAT,    b_dst );
+	if ( v_d >= 0 ) bli_blksz_set_def( v_d, BLIS_DOUBLE,   b_dst );
+	if ( v_c >= 0 ) bli_blksz_set_def( v_c, BLIS_SCOMPLEX, b_dst );
+	if ( v_z >= 0 ) bli_blksz_set_def( v_z, BLIS_DCOMPLEX, b_dst );
 
-	if ( e_s > 0 ) bli_blksz_set_max( e_s, BLIS_FLOAT,    b_dst );
-	if ( e_d > 0 ) bli_blksz_set_max( e_d, BLIS_DOUBLE,   b_dst );
-	if ( e_c > 0 ) bli_blksz_set_max( e_c, BLIS_SCOMPLEX, b_dst );
-	if ( e_z > 0 ) bli_blksz_set_max( e_z, BLIS_DCOMPLEX, b_dst );
+	if ( e_s >= 0 ) bli_blksz_set_max( e_s, BLIS_FLOAT,    b_dst );
+	if ( e_d >= 0 ) bli_blksz_set_max( e_d, BLIS_DOUBLE,   b_dst );
+	if ( e_c >= 0 ) bli_blksz_set_max( e_c, BLIS_SCOMPLEX, b_dst );
+	if ( e_z >= 0 ) bli_blksz_set_max( e_z, BLIS_DCOMPLEX, b_dst );
 }
 
 BLIS_INLINE void bli_blksz_copy_def_dt
@@ -29812,7 +29173,8 @@ BLIS_INLINE void bli_rntm_clear_l3_sup( rntm_t* rntm )
           .l3_sup      = TRUE, \
         }  \
 
-BLIS_INLINE void bli_rntm_init( rntm_t* rntm )
+#if 0
+//BLIS_INLINE void bli_rntm_clear( rntm_t* rntm )
 {
 	bli_rntm_clear_thread_impl( rntm );
 
@@ -29824,6 +29186,7 @@ BLIS_INLINE void bli_rntm_init( rntm_t* rntm )
 	bli_rntm_clear_pack_b( rntm );
 	bli_rntm_clear_l3_sup( rntm );
 }
+#endif
 
 //
 // -- rntm_t total thread calculation ------------------------------------------
@@ -29848,6 +29211,15 @@ BLIS_INLINE dim_t bli_rntm_calc_num_threads
 //
 // -- Function prototypes ------------------------------------------------------
 //
+
+rntm_t*              bli_global_rntm( void );
+rntm_t*              bli_global_rntm_at_init( void );
+bli_pthread_mutex_t* bli_global_rntm_mutex( void );
+
+int bli_rntm_init( void );
+int bli_rntm_finalize( void );
+
+void bli_rntm_init_from_env( rntm_t* rntm );
 
 BLIS_EXPORT_BLIS void bli_rntm_init_from_global( rntm_t* rntm );
 
@@ -29954,8 +29326,8 @@ dim_t bli_rntm_calc_num_threads_in
 #ifndef BLIS_GKS_H
 #define BLIS_GKS_H
 
-void                           bli_gks_init( void );
-void                           bli_gks_finalize( void );
+int                            bli_gks_init( void );
+int                            bli_gks_finalize( void );
 
 void                           bli_gks_init_index( void );
 
@@ -30109,8 +29481,8 @@ bool    bli_l3_ind_oper_is_impl( opid_t oper, ind_t method );
 #line 40 "./frame/base//bli_ind.h"
 
 
-void                         bli_ind_init( void );
-void                         bli_ind_finalize( void );
+int                          bli_ind_init( void );
+int                          bli_ind_finalize( void );
 
 BLIS_EXPORT_BLIS void        bli_ind_enable( ind_t method );
 BLIS_EXPORT_BLIS void        bli_ind_disable( ind_t method );
@@ -30805,7 +30177,7 @@ BLIS_INLINE pool_t* bli_apool_pool( apool_t* apool )
 	return &(apool->pool);
 }
 
-BLIS_INLINE  bli_pthread_mutex_t* bli_apool_mutex( apool_t* apool )
+BLIS_INLINE bli_pthread_mutex_t* bli_apool_mutex( apool_t* apool )
 {
 	return &(apool->mutex);
 }
@@ -30936,6 +30308,18 @@ apool_t* bli_sba_query( void );
 void bli_sba_init( void );
 void bli_sba_finalize( void );
 
+void* bli_sba_acquire
+     (
+       pool_t* sba_pool,
+       siz_t   req_size
+     );
+
+void bli_sba_release
+     (
+       pool_t* sba_pool,
+       void*   block
+     );
+
 array_t* bli_sba_checkout_array
      (
        siz_t n_threads
@@ -30946,16 +30330,10 @@ void bli_sba_checkin_array
        array_t* array
      );
 
-void* bli_sba_acquire
+pool_t* bli_sba_array_elem
      (
-       pool_t* pool,
-       siz_t   req_size
-     );
-
-void bli_sba_release
-     (
-       pool_t* pool,
-       void*   block
+       siz_t    index,
+       array_t* array
      );
 
 #endif
@@ -31005,10 +30383,8 @@ void bli_sba_release
 #ifndef BLIS_MEMSYS_H
 #define BLIS_MEMSYS_H
 
-// -----------------------------------------------------------------------------
-
-void bli_memsys_init( void );
-void bli_memsys_finalize( void );
+int bli_memsys_init( void );
+int bli_memsys_finalize( void );
 
 
 #endif
@@ -32265,7 +31641,7 @@ BLIS_EXPORT_BLIS void PASTEMAC(chv,opname) \
        void*     v     \
      );
 
-INSERT_GENTPROTR_BASIC0( machval )
+INSERT_GENTPROTR_BASIC( machval )
 
 // end bli_machval.h
 #line 150 "./frame/include/blis.h"
@@ -32662,15 +32038,10 @@ char*  bli_env_get_str( const char* env );
 #ifndef BLIS_PACK_H
 #define BLIS_PACK_H
 
-void  bli_pack_init( void );
-void  bli_pack_finalize( void );
-
 BLIS_EXPORT_BLIS void bli_pack_get_pack_a( bool* pack_a );
 BLIS_EXPORT_BLIS void bli_pack_get_pack_b( bool* pack_b );
 BLIS_EXPORT_BLIS void bli_pack_set_pack_a( bool pack_a );
 BLIS_EXPORT_BLIS void bli_pack_set_pack_b( bool pack_b );
-
-void  bli_pack_init_rntm_from_env( rntm_t* rntm );
 
 #endif
 
@@ -32759,6 +32130,7 @@ BLIS_EXPORT_BLIS gint_t bli_info_get_enable_hpx_as_default( void );
 BLIS_EXPORT_BLIS gint_t bli_info_get_thread_jrir_slab( void );
 BLIS_EXPORT_BLIS gint_t bli_info_get_thread_jrir_rr( void );
 BLIS_EXPORT_BLIS gint_t bli_info_get_thread_jrir_tlb( void );
+BLIS_EXPORT_BLIS gint_t bli_info_get_enable_tls( void );
 BLIS_EXPORT_BLIS gint_t bli_info_get_enable_memkind( void );
 BLIS_EXPORT_BLIS gint_t bli_info_get_enable_sandbox( void );
 
@@ -33148,7 +32520,7 @@ BLIS_EXPORT_BLIS void PASTEMAC(ch,opname) \
        void*  b, inc_t rs, inc_t cs  \
      );
 
-INSERT_GENTPROT_BASIC0( setijm )
+INSERT_GENTPROT_BASIC( setijm )
 
 // -----------------------------------------------------------------------------
 
@@ -33173,7 +32545,7 @@ BLIS_EXPORT_BLIS void PASTEMAC(ch,opname) \
              double* ai  \
      );
 
-INSERT_GENTPROT_BASIC0( getijm )
+INSERT_GENTPROT_BASIC( getijm )
 
 // end bli_setgetijm.h
 #line 160 "./frame/include/blis.h"
@@ -33234,7 +32606,7 @@ BLIS_EXPORT_BLIS void PASTEMAC(ch,opname) \
        void*  x, inc_t incx  \
      );
 
-INSERT_GENTPROT_BASIC0( setijv )
+INSERT_GENTPROT_BASIC( setijv )
 
 // -----------------------------------------------------------------------------
 
@@ -33257,7 +32629,7 @@ BLIS_EXPORT_BLIS void PASTEMAC(ch,opname) \
              double* ai  \
      );
 
-INSERT_GENTPROT_BASIC0( getijv )
+INSERT_GENTPROT_BASIC( getijv )
 
 // end bli_setgetijv.h
 #line 161 "./frame/include/blis.h"
@@ -33394,8 +32766,8 @@ BLIS_EXPORT_BLIS void PASTEMAC2(cha,chb,opname) \
              void*   b, inc_t rs_b, inc_t cs_b  \
      );
 
-INSERT_GENTPROT2_BASIC0( castm )
-INSERT_GENTPROT2_MIXDP0( castm )
+INSERT_GENTPROT2_BASIC( castm )
+INSERT_GENTPROT2_MIX_DP( castm )
 
 //
 // Prototype object-based _check() function.
@@ -33473,8 +32845,8 @@ BLIS_EXPORT_BLIS void PASTEMAC2(cha,chb,opname) \
              void*   b, inc_t rs_b, inc_t cs_b  \
      );
 
-INSERT_GENTPROT2_BASIC0( castnzm )
-INSERT_GENTPROT2_MIXDP0( castnzm )
+INSERT_GENTPROT2_BASIC( castnzm )
+INSERT_GENTPROT2_MIX_DP( castnzm )
 
 //
 // Prototype object-based _check() function.
@@ -33551,8 +32923,8 @@ BLIS_EXPORT_BLIS void PASTEMAC2(chx,chy,opname) \
              void*  y, inc_t incy  \
      );
 
-INSERT_GENTPROT2_BASIC0( castv )
-INSERT_GENTPROT2_MIXDP0( castv )
+INSERT_GENTPROT2_BASIC( castv )
+INSERT_GENTPROT2_MIX_DP( castv )
 
 //
 // Prototype object-based _check() function.
@@ -34045,11 +33417,11 @@ BLIS_EXPORT_BLIS void PASTEMAC(ch,opname) \
              ctype* psi  \
      );
 
-INSERT_GENTPROT_BASIC0( addsc )
-INSERT_GENTPROT_BASIC0( divsc )
-INSERT_GENTPROT_BASIC0( mulsc )
-INSERT_GENTPROT_BASIC0( subsc )
-INSERT_GENTPROT_BASIC0( invertsc )
+INSERT_GENTPROT_BASIC( addsc )
+INSERT_GENTPROT_BASIC( divsc )
+INSERT_GENTPROT_BASIC( mulsc )
+INSERT_GENTPROT_BASIC( subsc )
+INSERT_GENTPROT_BASIC( invertsc )
 
 
 #undef  GENTPROTR
@@ -34061,8 +33433,8 @@ BLIS_EXPORT_BLIS void PASTEMAC(ch,opname) \
              ctype_r* absq  \
      );
 
-INSERT_GENTPROTR_BASIC0( absqsc )
-INSERT_GENTPROTR_BASIC0( normfsc )
+INSERT_GENTPROTR_BASIC( absqsc )
+INSERT_GENTPROTR_BASIC( normfsc )
 
 
 #undef  GENTPROT
@@ -34074,8 +33446,8 @@ BLIS_EXPORT_BLIS void PASTEMAC(ch,opname) \
              ctype* psi  \
      );
 
-INSERT_GENTPROT_BASIC0( sqrtsc )
-INSERT_GENTPROT_BASIC0( sqrtrsc )
+INSERT_GENTPROT_BASIC( sqrtsc )
+INSERT_GENTPROT_BASIC( sqrtrsc )
 
 
 #undef  GENTPROT
@@ -34088,7 +33460,7 @@ BLIS_EXPORT_BLIS void PASTEMAC(ch,opname) \
              double* zeta_i  \
      );
 
-INSERT_GENTPROT_BASIC0( getsc )
+INSERT_GENTPROT_BASIC( getsc )
 
 
 #undef  GENTPROT
@@ -34101,7 +33473,7 @@ BLIS_EXPORT_BLIS void PASTEMAC(ch,opname) \
        ctype* chi  \
      );
 
-INSERT_GENTPROT_BASIC0( setsc )
+INSERT_GENTPROT_BASIC( setsc )
 
 
 #undef  GENTPROTR
@@ -34114,7 +33486,7 @@ BLIS_EXPORT_BLIS void PASTEMAC(ch,opname) \
              ctype_r* zeta_i  \
      );
 
-INSERT_GENTPROTR_BASIC0( unzipsc )
+INSERT_GENTPROTR_BASIC( unzipsc )
 
 
 #undef  GENTPROTR
@@ -34127,7 +33499,7 @@ BLIS_EXPORT_BLIS void PASTEMAC(ch,opname) \
              ctype*   chi  \
      );
 
-INSERT_GENTPROTR_BASIC0( zipsc )
+INSERT_GENTPROTR_BASIC( zipsc )
 
 // -----------------------------------------------------------------------------
 
@@ -34468,9 +33840,9 @@ BLIS_EXPORT_BLIS void PASTEMAC2(chx,chy,varname) \
              void*  psi \
      );
 
-INSERT_GENTPROT2_BASIC0( copysc )
-INSERT_GENTPROT2_MIX_D0( copysc )
-INSERT_GENTPROT2_MIX_P0( copysc )
+INSERT_GENTPROT2_BASIC( copysc )
+INSERT_GENTPROT2_MIX_D( copysc )
+INSERT_GENTPROT2_MIX_P( copysc )
 
 // end bli_copysc.h
 #line 46 "./frame/0//bli_l0.h"
@@ -35567,9 +34939,9 @@ BLIS_EXPORT_BLIS void PASTEMAC2(ch,opname,EX_SUF) \
         BLIS_TAPI_EX_PARAMS  \
       );
 
-INSERT_GENTPROT_BASIC0( addv )
-INSERT_GENTPROT_BASIC0( copyv )
-INSERT_GENTPROT_BASIC0( subv )
+INSERT_GENTPROT_BASIC( addv )
+INSERT_GENTPROT_BASIC( copyv )
+INSERT_GENTPROT_BASIC( subv )
 
 
 #undef  GENTPROT
@@ -35583,7 +34955,7 @@ BLIS_EXPORT_BLIS void PASTEMAC2(ch,opname,EX_SUF) \
        BLIS_TAPI_EX_PARAMS  \
      ); \
 
-INSERT_GENTPROT_BASIC0( amaxv )
+INSERT_GENTPROT_BASIC( amaxv )
 
 
 #undef  GENTPROT
@@ -35600,7 +34972,7 @@ BLIS_EXPORT_BLIS void PASTEMAC2(ch,opname,EX_SUF) \
        BLIS_TAPI_EX_PARAMS  \
      ); \
 
-INSERT_GENTPROT_BASIC0( axpbyv )
+INSERT_GENTPROT_BASIC( axpbyv )
 
 
 #undef  GENTPROT
@@ -35616,8 +34988,8 @@ BLIS_EXPORT_BLIS void PASTEMAC2(ch,opname,EX_SUF) \
        BLIS_TAPI_EX_PARAMS  \
      ); \
 
-INSERT_GENTPROT_BASIC0( axpyv )
-INSERT_GENTPROT_BASIC0( scal2v )
+INSERT_GENTPROT_BASIC( axpyv )
+INSERT_GENTPROT_BASIC( scal2v )
 
 
 #undef  GENTPROT
@@ -35634,7 +35006,7 @@ BLIS_EXPORT_BLIS void PASTEMAC2(ch,opname,EX_SUF) \
        BLIS_TAPI_EX_PARAMS  \
      ); \
 
-INSERT_GENTPROT_BASIC0( dotv )
+INSERT_GENTPROT_BASIC( dotv )
 
 
 #undef  GENTPROT
@@ -35653,7 +35025,7 @@ BLIS_EXPORT_BLIS void PASTEMAC2(ch,opname,EX_SUF) \
        BLIS_TAPI_EX_PARAMS  \
      ); \
 
-INSERT_GENTPROT_BASIC0( dotxv )
+INSERT_GENTPROT_BASIC( dotxv )
 
 
 #undef  GENTPROT
@@ -35666,7 +35038,7 @@ BLIS_EXPORT_BLIS void PASTEMAC2(ch,opname,EX_SUF) \
        BLIS_TAPI_EX_PARAMS  \
      ); \
 
-INSERT_GENTPROT_BASIC0( invertv )
+INSERT_GENTPROT_BASIC( invertv )
 
 
 #undef  GENTPROT
@@ -35681,9 +35053,9 @@ BLIS_EXPORT_BLIS void PASTEMAC2(ch,opname,EX_SUF) \
        BLIS_TAPI_EX_PARAMS  \
      ); \
 
-INSERT_GENTPROT_BASIC0( invscalv )
-INSERT_GENTPROT_BASIC0( scalv )
-INSERT_GENTPROT_BASIC0( setv )
+INSERT_GENTPROT_BASIC( invscalv )
+INSERT_GENTPROT_BASIC( scalv )
+INSERT_GENTPROT_BASIC( setv )
 
 
 #undef  GENTPROT
@@ -35697,7 +35069,7 @@ BLIS_EXPORT_BLIS void PASTEMAC2(ch,opname,EX_SUF) \
        BLIS_TAPI_EX_PARAMS  \
      ); \
 
-INSERT_GENTPROT_BASIC0( swapv )
+INSERT_GENTPROT_BASIC( swapv )
 
 
 #undef  GENTPROT
@@ -35713,7 +35085,7 @@ BLIS_EXPORT_BLIS void PASTEMAC2(ch,opname,EX_SUF) \
        BLIS_TAPI_EX_PARAMS  \
      ); \
 
-INSERT_GENTPROT_BASIC0( xpbyv )
+INSERT_GENTPROT_BASIC( xpbyv )
 // end bli_l1v_tapi.h
 #line 52 "./frame/1//bli_l1v.h"
 
@@ -36117,9 +35489,9 @@ BLIS_EXPORT_BLIS void PASTEMAC2(ch,opname,EX_SUF) \
         BLIS_TAPI_EX_PARAMS  \
       );
 
-INSERT_GENTPROT_BASIC0( addv )
-INSERT_GENTPROT_BASIC0( copyv )
-INSERT_GENTPROT_BASIC0( subv )
+INSERT_GENTPROT_BASIC( addv )
+INSERT_GENTPROT_BASIC( copyv )
+INSERT_GENTPROT_BASIC( subv )
 
 
 #undef  GENTPROT
@@ -36133,7 +35505,7 @@ BLIS_EXPORT_BLIS void PASTEMAC2(ch,opname,EX_SUF) \
        BLIS_TAPI_EX_PARAMS  \
      ); \
 
-INSERT_GENTPROT_BASIC0( amaxv )
+INSERT_GENTPROT_BASIC( amaxv )
 
 
 #undef  GENTPROT
@@ -36150,7 +35522,7 @@ BLIS_EXPORT_BLIS void PASTEMAC2(ch,opname,EX_SUF) \
        BLIS_TAPI_EX_PARAMS  \
      ); \
 
-INSERT_GENTPROT_BASIC0( axpbyv )
+INSERT_GENTPROT_BASIC( axpbyv )
 
 
 #undef  GENTPROT
@@ -36166,8 +35538,8 @@ BLIS_EXPORT_BLIS void PASTEMAC2(ch,opname,EX_SUF) \
        BLIS_TAPI_EX_PARAMS  \
      ); \
 
-INSERT_GENTPROT_BASIC0( axpyv )
-INSERT_GENTPROT_BASIC0( scal2v )
+INSERT_GENTPROT_BASIC( axpyv )
+INSERT_GENTPROT_BASIC( scal2v )
 
 
 #undef  GENTPROT
@@ -36184,7 +35556,7 @@ BLIS_EXPORT_BLIS void PASTEMAC2(ch,opname,EX_SUF) \
        BLIS_TAPI_EX_PARAMS  \
      ); \
 
-INSERT_GENTPROT_BASIC0( dotv )
+INSERT_GENTPROT_BASIC( dotv )
 
 
 #undef  GENTPROT
@@ -36203,7 +35575,7 @@ BLIS_EXPORT_BLIS void PASTEMAC2(ch,opname,EX_SUF) \
        BLIS_TAPI_EX_PARAMS  \
      ); \
 
-INSERT_GENTPROT_BASIC0( dotxv )
+INSERT_GENTPROT_BASIC( dotxv )
 
 
 #undef  GENTPROT
@@ -36216,7 +35588,7 @@ BLIS_EXPORT_BLIS void PASTEMAC2(ch,opname,EX_SUF) \
        BLIS_TAPI_EX_PARAMS  \
      ); \
 
-INSERT_GENTPROT_BASIC0( invertv )
+INSERT_GENTPROT_BASIC( invertv )
 
 
 #undef  GENTPROT
@@ -36231,9 +35603,9 @@ BLIS_EXPORT_BLIS void PASTEMAC2(ch,opname,EX_SUF) \
        BLIS_TAPI_EX_PARAMS  \
      ); \
 
-INSERT_GENTPROT_BASIC0( invscalv )
-INSERT_GENTPROT_BASIC0( scalv )
-INSERT_GENTPROT_BASIC0( setv )
+INSERT_GENTPROT_BASIC( invscalv )
+INSERT_GENTPROT_BASIC( scalv )
+INSERT_GENTPROT_BASIC( setv )
 
 
 #undef  GENTPROT
@@ -36247,7 +35619,7 @@ BLIS_EXPORT_BLIS void PASTEMAC2(ch,opname,EX_SUF) \
        BLIS_TAPI_EX_PARAMS  \
      ); \
 
-INSERT_GENTPROT_BASIC0( swapv )
+INSERT_GENTPROT_BASIC( swapv )
 
 
 #undef  GENTPROT
@@ -36263,7 +35635,7 @@ BLIS_EXPORT_BLIS void PASTEMAC2(ch,opname,EX_SUF) \
        BLIS_TAPI_EX_PARAMS  \
      ); \
 
-INSERT_GENTPROT_BASIC0( xpbyv )
+INSERT_GENTPROT_BASIC( xpbyv )
 // end bli_l1v_tapi.h
 #line 57 "./frame/1//bli_l1v.h"
 
@@ -37422,9 +36794,9 @@ BLIS_EXPORT_BLIS void PASTEMAC2(ch,opname,EX_SUF) \
        BLIS_TAPI_EX_PARAMS  \
      );
 
-INSERT_GENTPROT_BASIC0( addd )
-INSERT_GENTPROT_BASIC0( copyd )
-INSERT_GENTPROT_BASIC0( subd )
+INSERT_GENTPROT_BASIC( addd )
+INSERT_GENTPROT_BASIC( copyd )
+INSERT_GENTPROT_BASIC( subd )
 
 
 #undef  GENTPROT
@@ -37443,8 +36815,8 @@ BLIS_EXPORT_BLIS void PASTEMAC2(ch,opname,EX_SUF) \
        BLIS_TAPI_EX_PARAMS  \
      );
 
-INSERT_GENTPROT_BASIC0( axpyd )
-INSERT_GENTPROT_BASIC0( scal2d )
+INSERT_GENTPROT_BASIC( axpyd )
+INSERT_GENTPROT_BASIC( scal2d )
 
 
 #undef  GENTPROT
@@ -37459,7 +36831,7 @@ BLIS_EXPORT_BLIS void PASTEMAC2(ch,opname,EX_SUF) \
        BLIS_TAPI_EX_PARAMS  \
      );
 
-INSERT_GENTPROT_BASIC0( invertd )
+INSERT_GENTPROT_BASIC( invertd )
 
 
 #undef  GENTPROT
@@ -37476,9 +36848,9 @@ BLIS_EXPORT_BLIS void PASTEMAC2(ch,opname,EX_SUF) \
        BLIS_TAPI_EX_PARAMS  \
      );
 
-INSERT_GENTPROT_BASIC0( invscald )
-INSERT_GENTPROT_BASIC0( scald )
-INSERT_GENTPROT_BASIC0( setd )
+INSERT_GENTPROT_BASIC( invscald )
+INSERT_GENTPROT_BASIC( scald )
+INSERT_GENTPROT_BASIC( setd )
 
 
 #undef  GENTPROTR
@@ -37494,7 +36866,7 @@ BLIS_EXPORT_BLIS void PASTEMAC2(ch,opname,EX_SUF) \
        BLIS_TAPI_EX_PARAMS  \
      );
 
-INSERT_GENTPROTR_BASIC0( setid )
+INSERT_GENTPROTR_BASIC( setid )
 
 
 #undef  GENTPROT
@@ -37510,7 +36882,7 @@ BLIS_EXPORT_BLIS void PASTEMAC2(ch,opname,EX_SUF) \
        BLIS_TAPI_EX_PARAMS  \
      );
 
-INSERT_GENTPROT_BASIC0( shiftd )
+INSERT_GENTPROT_BASIC( shiftd )
 
 
 #undef  GENTPROT
@@ -37529,7 +36901,7 @@ BLIS_EXPORT_BLIS void PASTEMAC2(ch,opname,EX_SUF) \
        BLIS_TAPI_EX_PARAMS  \
      );
 
-INSERT_GENTPROT_BASIC0( xpbyd )
+INSERT_GENTPROT_BASIC( xpbyd )
 
 // end bli_l1d_tapi.h
 #line 49 "./frame/1d//bli_l1d.h"
@@ -37897,9 +37269,9 @@ BLIS_EXPORT_BLIS void PASTEMAC2(ch,opname,EX_SUF) \
        BLIS_TAPI_EX_PARAMS  \
      );
 
-INSERT_GENTPROT_BASIC0( addd )
-INSERT_GENTPROT_BASIC0( copyd )
-INSERT_GENTPROT_BASIC0( subd )
+INSERT_GENTPROT_BASIC( addd )
+INSERT_GENTPROT_BASIC( copyd )
+INSERT_GENTPROT_BASIC( subd )
 
 
 #undef  GENTPROT
@@ -37918,8 +37290,8 @@ BLIS_EXPORT_BLIS void PASTEMAC2(ch,opname,EX_SUF) \
        BLIS_TAPI_EX_PARAMS  \
      );
 
-INSERT_GENTPROT_BASIC0( axpyd )
-INSERT_GENTPROT_BASIC0( scal2d )
+INSERT_GENTPROT_BASIC( axpyd )
+INSERT_GENTPROT_BASIC( scal2d )
 
 
 #undef  GENTPROT
@@ -37934,7 +37306,7 @@ BLIS_EXPORT_BLIS void PASTEMAC2(ch,opname,EX_SUF) \
        BLIS_TAPI_EX_PARAMS  \
      );
 
-INSERT_GENTPROT_BASIC0( invertd )
+INSERT_GENTPROT_BASIC( invertd )
 
 
 #undef  GENTPROT
@@ -37951,9 +37323,9 @@ BLIS_EXPORT_BLIS void PASTEMAC2(ch,opname,EX_SUF) \
        BLIS_TAPI_EX_PARAMS  \
      );
 
-INSERT_GENTPROT_BASIC0( invscald )
-INSERT_GENTPROT_BASIC0( scald )
-INSERT_GENTPROT_BASIC0( setd )
+INSERT_GENTPROT_BASIC( invscald )
+INSERT_GENTPROT_BASIC( scald )
+INSERT_GENTPROT_BASIC( setd )
 
 
 #undef  GENTPROTR
@@ -37969,7 +37341,7 @@ BLIS_EXPORT_BLIS void PASTEMAC2(ch,opname,EX_SUF) \
        BLIS_TAPI_EX_PARAMS  \
      );
 
-INSERT_GENTPROTR_BASIC0( setid )
+INSERT_GENTPROTR_BASIC( setid )
 
 
 #undef  GENTPROT
@@ -37985,7 +37357,7 @@ BLIS_EXPORT_BLIS void PASTEMAC2(ch,opname,EX_SUF) \
        BLIS_TAPI_EX_PARAMS  \
      );
 
-INSERT_GENTPROT_BASIC0( shiftd )
+INSERT_GENTPROT_BASIC( shiftd )
 
 
 #undef  GENTPROT
@@ -38004,7 +37376,7 @@ BLIS_EXPORT_BLIS void PASTEMAC2(ch,opname,EX_SUF) \
        BLIS_TAPI_EX_PARAMS  \
      );
 
-INSERT_GENTPROT_BASIC0( xpbyd )
+INSERT_GENTPROT_BASIC( xpbyd )
 
 // end bli_l1d_tapi.h
 #line 54 "./frame/1d//bli_l1d.h"
@@ -39182,7 +38554,7 @@ BLIS_EXPORT_BLIS void PASTEMAC2(ch,opname,EX_SUF) \
        BLIS_TAPI_EX_PARAMS  \
      );
 
-INSERT_GENTPROT_BASIC0( axpy2v )
+INSERT_GENTPROT_BASIC( axpy2v )
 
 
 #undef  GENTPROT
@@ -39201,7 +38573,7 @@ BLIS_EXPORT_BLIS void PASTEMAC2(ch,opname,EX_SUF) \
        BLIS_TAPI_EX_PARAMS  \
      );
 
-INSERT_GENTPROT_BASIC0( axpyf )
+INSERT_GENTPROT_BASIC( axpyf )
 
 
 #undef  GENTPROT
@@ -39221,7 +38593,7 @@ BLIS_EXPORT_BLIS void PASTEMAC2(ch,opname,EX_SUF) \
        BLIS_TAPI_EX_PARAMS  \
      );
 
-INSERT_GENTPROT_BASIC0( dotaxpyv )
+INSERT_GENTPROT_BASIC( dotaxpyv )
 
 
 #undef  GENTPROT
@@ -39245,7 +38617,7 @@ BLIS_EXPORT_BLIS void PASTEMAC2(ch,opname,EX_SUF) \
        BLIS_TAPI_EX_PARAMS  \
      );
 
-INSERT_GENTPROT_BASIC0( dotxaxpyf )
+INSERT_GENTPROT_BASIC( dotxaxpyf )
 
 
 #undef  GENTPROT
@@ -39265,7 +38637,7 @@ BLIS_EXPORT_BLIS void PASTEMAC2(ch,opname,EX_SUF) \
        BLIS_TAPI_EX_PARAMS  \
      );
 
-INSERT_GENTPROT_BASIC0( dotxf )
+INSERT_GENTPROT_BASIC( dotxf )
 
 // end bli_l1f_tapi.h
 #line 52 "./frame/1f//bli_l1f.h"
@@ -39610,7 +38982,7 @@ BLIS_EXPORT_BLIS void PASTEMAC2(ch,opname,EX_SUF) \
        BLIS_TAPI_EX_PARAMS  \
      );
 
-INSERT_GENTPROT_BASIC0( axpy2v )
+INSERT_GENTPROT_BASIC( axpy2v )
 
 
 #undef  GENTPROT
@@ -39629,7 +39001,7 @@ BLIS_EXPORT_BLIS void PASTEMAC2(ch,opname,EX_SUF) \
        BLIS_TAPI_EX_PARAMS  \
      );
 
-INSERT_GENTPROT_BASIC0( axpyf )
+INSERT_GENTPROT_BASIC( axpyf )
 
 
 #undef  GENTPROT
@@ -39649,7 +39021,7 @@ BLIS_EXPORT_BLIS void PASTEMAC2(ch,opname,EX_SUF) \
        BLIS_TAPI_EX_PARAMS  \
      );
 
-INSERT_GENTPROT_BASIC0( dotaxpyv )
+INSERT_GENTPROT_BASIC( dotaxpyv )
 
 
 #undef  GENTPROT
@@ -39673,7 +39045,7 @@ BLIS_EXPORT_BLIS void PASTEMAC2(ch,opname,EX_SUF) \
        BLIS_TAPI_EX_PARAMS  \
      );
 
-INSERT_GENTPROT_BASIC0( dotxaxpyf )
+INSERT_GENTPROT_BASIC( dotxaxpyf )
 
 
 #undef  GENTPROT
@@ -39693,7 +39065,7 @@ BLIS_EXPORT_BLIS void PASTEMAC2(ch,opname,EX_SUF) \
        BLIS_TAPI_EX_PARAMS  \
      );
 
-INSERT_GENTPROT_BASIC0( dotxf )
+INSERT_GENTPROT_BASIC( dotxf )
 
 // end bli_l1f_tapi.h
 #line 57 "./frame/1f//bli_l1f.h"
@@ -40876,9 +40248,9 @@ BLIS_EXPORT_BLIS void PASTEMAC2(ch,opname,EX_SUF) \
        BLIS_TAPI_EX_PARAMS  \
      );
 
-INSERT_GENTPROT_BASIC0( addm )
-INSERT_GENTPROT_BASIC0( copym )
-INSERT_GENTPROT_BASIC0( subm )
+INSERT_GENTPROT_BASIC( addm )
+INSERT_GENTPROT_BASIC( copym )
+INSERT_GENTPROT_BASIC( subm )
 
 
 #undef  GENTPROT
@@ -40898,8 +40270,8 @@ BLIS_EXPORT_BLIS void PASTEMAC2(ch,opname,EX_SUF) \
        BLIS_TAPI_EX_PARAMS  \
      );
 
-INSERT_GENTPROT_BASIC0( axpym )
-INSERT_GENTPROT_BASIC0( scal2m )
+INSERT_GENTPROT_BASIC( axpym )
+INSERT_GENTPROT_BASIC( scal2m )
 
 
 #undef  GENTPROT
@@ -40918,9 +40290,9 @@ BLIS_EXPORT_BLIS void PASTEMAC2(ch,opname,EX_SUF) \
        BLIS_TAPI_EX_PARAMS  \
      );
 
-INSERT_GENTPROT_BASIC0( invscalm )
-INSERT_GENTPROT_BASIC0( scalm )
-INSERT_GENTPROT_BASIC0( setm )
+INSERT_GENTPROT_BASIC( invscalm )
+INSERT_GENTPROT_BASIC( scalm )
+INSERT_GENTPROT_BASIC( setm )
 
 
 #undef  GENTPROT
@@ -40940,7 +40312,7 @@ BLIS_EXPORT_BLIS void PASTEMAC2(ch,opname,EX_SUF) \
        BLIS_TAPI_EX_PARAMS  \
      );
 
-INSERT_GENTPROT_BASIC0( xpbym )
+INSERT_GENTPROT_BASIC( xpbym )
 
 
 #undef  GENTPROT2
@@ -40960,8 +40332,8 @@ BLIS_EXPORT_BLIS void PASTEMAC3(chx,chy,opname,EX_SUF) \
        BLIS_TAPI_EX_PARAMS  \
      );
 
-INSERT_GENTPROT2_BASIC0( xpbym_md )
-INSERT_GENTPROT2_MIXDP0( xpbym_md )
+INSERT_GENTPROT2_BASIC( xpbym_md )
+INSERT_GENTPROT2_MIX_DP( xpbym_md )
 
 // end bli_l1m_tapi.h
 #line 55 "./frame/1m//bli_l1m.h"
@@ -41306,9 +40678,9 @@ BLIS_EXPORT_BLIS void PASTEMAC2(ch,opname,EX_SUF) \
        BLIS_TAPI_EX_PARAMS  \
      );
 
-INSERT_GENTPROT_BASIC0( addm )
-INSERT_GENTPROT_BASIC0( copym )
-INSERT_GENTPROT_BASIC0( subm )
+INSERT_GENTPROT_BASIC( addm )
+INSERT_GENTPROT_BASIC( copym )
+INSERT_GENTPROT_BASIC( subm )
 
 
 #undef  GENTPROT
@@ -41328,8 +40700,8 @@ BLIS_EXPORT_BLIS void PASTEMAC2(ch,opname,EX_SUF) \
        BLIS_TAPI_EX_PARAMS  \
      );
 
-INSERT_GENTPROT_BASIC0( axpym )
-INSERT_GENTPROT_BASIC0( scal2m )
+INSERT_GENTPROT_BASIC( axpym )
+INSERT_GENTPROT_BASIC( scal2m )
 
 
 #undef  GENTPROT
@@ -41348,9 +40720,9 @@ BLIS_EXPORT_BLIS void PASTEMAC2(ch,opname,EX_SUF) \
        BLIS_TAPI_EX_PARAMS  \
      );
 
-INSERT_GENTPROT_BASIC0( invscalm )
-INSERT_GENTPROT_BASIC0( scalm )
-INSERT_GENTPROT_BASIC0( setm )
+INSERT_GENTPROT_BASIC( invscalm )
+INSERT_GENTPROT_BASIC( scalm )
+INSERT_GENTPROT_BASIC( setm )
 
 
 #undef  GENTPROT
@@ -41370,7 +40742,7 @@ BLIS_EXPORT_BLIS void PASTEMAC2(ch,opname,EX_SUF) \
        BLIS_TAPI_EX_PARAMS  \
      );
 
-INSERT_GENTPROT_BASIC0( xpbym )
+INSERT_GENTPROT_BASIC( xpbym )
 
 
 #undef  GENTPROT2
@@ -41390,8 +40762,8 @@ BLIS_EXPORT_BLIS void PASTEMAC3(chx,chy,opname,EX_SUF) \
        BLIS_TAPI_EX_PARAMS  \
      );
 
-INSERT_GENTPROT2_BASIC0( xpbym_md )
-INSERT_GENTPROT2_MIXDP0( xpbym_md )
+INSERT_GENTPROT2_BASIC( xpbym_md )
+INSERT_GENTPROT2_MIX_DP( xpbym_md )
 
 // end bli_l1m_tapi.h
 #line 60 "./frame/1m//bli_l1m.h"
@@ -41742,9 +41114,9 @@ void PASTEMAC2(ch,opname,_unb_var1) \
        cntx_t* cntx \
      );
 
-INSERT_GENTPROT_BASIC0( addm )
-INSERT_GENTPROT_BASIC0( copym )
-INSERT_GENTPROT_BASIC0( subm )
+INSERT_GENTPROT_BASIC( addm )
+INSERT_GENTPROT_BASIC( copym )
+INSERT_GENTPROT_BASIC( subm )
 
 
 #undef  GENTPROT
@@ -41764,8 +41136,8 @@ void PASTEMAC2(ch,opname,_unb_var1) \
        cntx_t* cntx \
      );
 
-INSERT_GENTPROT_BASIC0( axpym )
-INSERT_GENTPROT_BASIC0( scal2m )
+INSERT_GENTPROT_BASIC( axpym )
+INSERT_GENTPROT_BASIC( scal2m )
 
 
 #undef  GENTPROT
@@ -41784,9 +41156,9 @@ void PASTEMAC2(ch,opname,_unb_var1) \
        cntx_t* cntx \
      );
 
-INSERT_GENTPROT_BASIC0( invscalm )
-INSERT_GENTPROT_BASIC0( scalm )
-INSERT_GENTPROT_BASIC0( setm )
+INSERT_GENTPROT_BASIC( invscalm )
+INSERT_GENTPROT_BASIC( scalm )
+INSERT_GENTPROT_BASIC( setm )
 
 
 #undef  GENTPROT
@@ -41806,7 +41178,7 @@ void PASTEMAC2(ch,opname,_unb_var1) \
        cntx_t* cntx \
      );
 
-INSERT_GENTPROT_BASIC0( xpbym )
+INSERT_GENTPROT_BASIC( xpbym )
 
 
 #undef  GENTPROT2
@@ -41826,8 +41198,8 @@ void PASTEMAC3(chx,chy,opname,_unb_var1) \
        cntx_t*  cntx \
      );
 
-INSERT_GENTPROT2_BASIC0( xpbym_md )
-INSERT_GENTPROT2_MIXDP0( xpbym_md )
+INSERT_GENTPROT2_BASIC( xpbym_md )
+INSERT_GENTPROT2_MIX_DP( xpbym_md )
 
 // end bli_l1m_unb_var1.h
 #line 68 "./frame/1m//bli_l1m.h"
@@ -42016,7 +41388,7 @@ BLIS_INLINE packbuf_t bli_cntl_packm_params_pack_buf_type( const cntl_t* cntl )
 
 cntl_t* bli_packm_cntl_create_node
      (
-       pool_t*   pool,
+       pool_t*   sba_pool,
        void_fp   var_func,
        bszid_t   bmid_m,
        bszid_t   bmid_n,
@@ -42350,7 +41722,7 @@ void PASTEMAC(ch,varname) \
        cntx_t* cntx  \
      );
 
-INSERT_GENTPROT_BASIC0( packm_struc_cxk )
+INSERT_GENTPROT_BASIC( packm_struc_cxk )
 
 // end bli_packm_struc_cxk.h
 #line 46 "./frame/1m/packm//bli_packm.h"
@@ -42420,8 +41792,8 @@ void PASTEMAC2(chc,chp,varname) \
        cntx_t*  cntx  \
      );
 
-INSERT_GENTPROT2_BASIC0( packm_struc_cxk_md )
-INSERT_GENTPROT2_MIXDP0( packm_struc_cxk_md )
+INSERT_GENTPROT2_BASIC( packm_struc_cxk_md )
+INSERT_GENTPROT2_MIX_DP( packm_struc_cxk_md )
 
 
 #undef  GENTPROT2
@@ -42437,11 +41809,11 @@ void PASTEMAC2(cha,chp,opname) \
        ctype_p* p,             inc_t ldp  \
      );
 
-INSERT_GENTPROT2_BASIC0( packm_cxk_1e_md )
-INSERT_GENTPROT2_MIXDP0( packm_cxk_1e_md )
+INSERT_GENTPROT2_BASIC( packm_cxk_1e_md )
+INSERT_GENTPROT2_MIX_DP( packm_cxk_1e_md )
 
-INSERT_GENTPROT2_BASIC0( packm_cxk_1r_md )
-INSERT_GENTPROT2_MIXDP0( packm_cxk_1r_md )
+INSERT_GENTPROT2_BASIC( packm_cxk_1r_md )
+INSERT_GENTPROT2_MIX_DP( packm_cxk_1r_md )
 
 // end bli_packm_struc_cxk_md.h
 #line 50 "./frame/1m/packm//bli_packm.h"
@@ -42780,7 +42152,7 @@ void PASTEMAC(ch,varname) \
        cntx_t* cntx  \
      );
 
-INSERT_GENTPROT_BASIC0( unpackm_blk_var1 )
+INSERT_GENTPROT_BASIC( unpackm_blk_var1 )
 
 // end bli_unpackm_blk_var1.h
 #line 40 "./frame/1m/unpackm//bli_unpackm.h"
@@ -43731,7 +43103,7 @@ BLIS_EXPORT_BLIS void PASTEMAC2(ch,opname,EX_SUF) \
        BLIS_TAPI_EX_PARAMS  \
      );
 
-INSERT_GENTPROT_BASIC0( gemv )
+INSERT_GENTPROT_BASIC( gemv )
 
 
 #undef  GENTPROT
@@ -43750,7 +43122,7 @@ BLIS_EXPORT_BLIS void PASTEMAC2(ch,opname,EX_SUF) \
        BLIS_TAPI_EX_PARAMS  \
      );
 
-INSERT_GENTPROT_BASIC0( ger )
+INSERT_GENTPROT_BASIC( ger )
 
 
 #undef  GENTPROT
@@ -43770,8 +43142,8 @@ BLIS_EXPORT_BLIS void PASTEMAC2(ch,opname,EX_SUF) \
        BLIS_TAPI_EX_PARAMS  \
      );
 
-INSERT_GENTPROT_BASIC0( hemv )
-INSERT_GENTPROT_BASIC0( symv )
+INSERT_GENTPROT_BASIC( hemv )
+INSERT_GENTPROT_BASIC( symv )
 
 
 #undef  GENTPROTR
@@ -43788,7 +43160,7 @@ BLIS_EXPORT_BLIS void PASTEMAC2(ch,opname,EX_SUF) \
        BLIS_TAPI_EX_PARAMS  \
      );
 
-INSERT_GENTPROTR_BASIC0( her )
+INSERT_GENTPROTR_BASIC( her )
 
 
 #undef  GENTPROT
@@ -43805,7 +43177,7 @@ BLIS_EXPORT_BLIS void PASTEMAC2(ch,opname,EX_SUF) \
        BLIS_TAPI_EX_PARAMS  \
      );
 
-INSERT_GENTPROT_BASIC0( syr )
+INSERT_GENTPROT_BASIC( syr )
 
 
 #undef  GENTPROT
@@ -43824,8 +43196,8 @@ BLIS_EXPORT_BLIS void PASTEMAC2(ch,opname,EX_SUF) \
        BLIS_TAPI_EX_PARAMS  \
      );
 
-INSERT_GENTPROT_BASIC0( her2 )
-INSERT_GENTPROT_BASIC0( syr2 )
+INSERT_GENTPROT_BASIC( her2 )
+INSERT_GENTPROT_BASIC( syr2 )
 
 
 #undef  GENTPROT
@@ -43843,8 +43215,8 @@ BLIS_EXPORT_BLIS void PASTEMAC2(ch,opname,EX_SUF) \
        BLIS_TAPI_EX_PARAMS  \
      );
 
-INSERT_GENTPROT_BASIC0( trmv )
-INSERT_GENTPROT_BASIC0( trsv )
+INSERT_GENTPROT_BASIC( trmv )
+INSERT_GENTPROT_BASIC( trsv )
 // end bli_l2_tapi.h
 #line 52 "./frame/2//bli_l2.h"
 
@@ -44221,7 +43593,7 @@ BLIS_EXPORT_BLIS void PASTEMAC2(ch,opname,EX_SUF) \
        BLIS_TAPI_EX_PARAMS  \
      );
 
-INSERT_GENTPROT_BASIC0( gemv )
+INSERT_GENTPROT_BASIC( gemv )
 
 
 #undef  GENTPROT
@@ -44240,7 +43612,7 @@ BLIS_EXPORT_BLIS void PASTEMAC2(ch,opname,EX_SUF) \
        BLIS_TAPI_EX_PARAMS  \
      );
 
-INSERT_GENTPROT_BASIC0( ger )
+INSERT_GENTPROT_BASIC( ger )
 
 
 #undef  GENTPROT
@@ -44260,8 +43632,8 @@ BLIS_EXPORT_BLIS void PASTEMAC2(ch,opname,EX_SUF) \
        BLIS_TAPI_EX_PARAMS  \
      );
 
-INSERT_GENTPROT_BASIC0( hemv )
-INSERT_GENTPROT_BASIC0( symv )
+INSERT_GENTPROT_BASIC( hemv )
+INSERT_GENTPROT_BASIC( symv )
 
 
 #undef  GENTPROTR
@@ -44278,7 +43650,7 @@ BLIS_EXPORT_BLIS void PASTEMAC2(ch,opname,EX_SUF) \
        BLIS_TAPI_EX_PARAMS  \
      );
 
-INSERT_GENTPROTR_BASIC0( her )
+INSERT_GENTPROTR_BASIC( her )
 
 
 #undef  GENTPROT
@@ -44295,7 +43667,7 @@ BLIS_EXPORT_BLIS void PASTEMAC2(ch,opname,EX_SUF) \
        BLIS_TAPI_EX_PARAMS  \
      );
 
-INSERT_GENTPROT_BASIC0( syr )
+INSERT_GENTPROT_BASIC( syr )
 
 
 #undef  GENTPROT
@@ -44314,8 +43686,8 @@ BLIS_EXPORT_BLIS void PASTEMAC2(ch,opname,EX_SUF) \
        BLIS_TAPI_EX_PARAMS  \
      );
 
-INSERT_GENTPROT_BASIC0( her2 )
-INSERT_GENTPROT_BASIC0( syr2 )
+INSERT_GENTPROT_BASIC( her2 )
+INSERT_GENTPROT_BASIC( syr2 )
 
 
 #undef  GENTPROT
@@ -44333,8 +43705,8 @@ BLIS_EXPORT_BLIS void PASTEMAC2(ch,opname,EX_SUF) \
        BLIS_TAPI_EX_PARAMS  \
      );
 
-INSERT_GENTPROT_BASIC0( trmv )
-INSERT_GENTPROT_BASIC0( trsv )
+INSERT_GENTPROT_BASIC( trmv )
+INSERT_GENTPROT_BASIC( trsv )
 // end bli_l2_tapi.h
 #line 57 "./frame/2//bli_l2.h"
 
@@ -44827,11 +44199,11 @@ void PASTEMAC(ch,varname) \
        cntx_t* cntx  \
      );
 
-INSERT_GENTPROT_BASIC0( gemv_unb_var1 )
-INSERT_GENTPROT_BASIC0( gemv_unb_var2 )
+INSERT_GENTPROT_BASIC( gemv_unb_var1 )
+INSERT_GENTPROT_BASIC( gemv_unb_var2 )
 
-INSERT_GENTPROT_BASIC0( gemv_unf_var1 )
-INSERT_GENTPROT_BASIC0( gemv_unf_var2 )
+INSERT_GENTPROT_BASIC( gemv_unf_var1 )
+INSERT_GENTPROT_BASIC( gemv_unf_var2 )
 
 // end bli_gemv_var.h
 #line 41 "./frame/2/gemv//bli_gemv.h"
@@ -44964,8 +44336,8 @@ void PASTEMAC(ch,varname) \
        cntx_t* cntx  \
      );
 
-INSERT_GENTPROT_BASIC0( ger_unb_var1 )
-INSERT_GENTPROT_BASIC0( ger_unb_var2 )
+INSERT_GENTPROT_BASIC( ger_unb_var1 )
+INSERT_GENTPROT_BASIC( ger_unb_var2 )
 
 // end bli_ger_var.h
 #line 41 "./frame/2/ger//bli_ger.h"
@@ -45110,15 +44482,15 @@ void PASTEMAC(ch,varname) \
        cntx_t* cntx  \
      );
 
-INSERT_GENTPROT_BASIC0( hemv_unb_var1 )
-INSERT_GENTPROT_BASIC0( hemv_unb_var2 )
-INSERT_GENTPROT_BASIC0( hemv_unb_var3 )
-INSERT_GENTPROT_BASIC0( hemv_unb_var4 )
+INSERT_GENTPROT_BASIC( hemv_unb_var1 )
+INSERT_GENTPROT_BASIC( hemv_unb_var2 )
+INSERT_GENTPROT_BASIC( hemv_unb_var3 )
+INSERT_GENTPROT_BASIC( hemv_unb_var4 )
 
-INSERT_GENTPROT_BASIC0( hemv_unf_var1 )
-INSERT_GENTPROT_BASIC0( hemv_unf_var3 )
-INSERT_GENTPROT_BASIC0( hemv_unf_var1a )
-INSERT_GENTPROT_BASIC0( hemv_unf_var3a )
+INSERT_GENTPROT_BASIC( hemv_unf_var1 )
+INSERT_GENTPROT_BASIC( hemv_unf_var3 )
+INSERT_GENTPROT_BASIC( hemv_unf_var1a )
+INSERT_GENTPROT_BASIC( hemv_unf_var3a )
 
 // end bli_hemv_var.h
 #line 41 "./frame/2/hemv//bli_hemv.h"
@@ -45250,8 +44622,8 @@ void PASTEMAC(ch,varname) \
        cntx_t* cntx  \
      );
 
-INSERT_GENTPROTR_BASIC0( her_unb_var1 )
-INSERT_GENTPROTR_BASIC0( her_unb_var2 )
+INSERT_GENTPROTR_BASIC( her_unb_var1 )
+INSERT_GENTPROTR_BASIC( her_unb_var2 )
 
 // end bli_her_var.h
 #line 41 "./frame/2/her//bli_her.h"
@@ -45393,13 +44765,13 @@ void PASTEMAC(ch,varname) \
        cntx_t* cntx  \
      );
 
-INSERT_GENTPROT_BASIC0( her2_unb_var1 )
-INSERT_GENTPROT_BASIC0( her2_unb_var2 )
-INSERT_GENTPROT_BASIC0( her2_unb_var3 )
-INSERT_GENTPROT_BASIC0( her2_unb_var4 )
+INSERT_GENTPROT_BASIC( her2_unb_var1 )
+INSERT_GENTPROT_BASIC( her2_unb_var2 )
+INSERT_GENTPROT_BASIC( her2_unb_var3 )
+INSERT_GENTPROT_BASIC( her2_unb_var4 )
 
-INSERT_GENTPROT_BASIC0( her2_unf_var1 )
-INSERT_GENTPROT_BASIC0( her2_unf_var4 )
+INSERT_GENTPROT_BASIC( her2_unf_var1 )
+INSERT_GENTPROT_BASIC( her2_unf_var4 )
 
 // end bli_her2_var.h
 #line 41 "./frame/2/her2//bli_her2.h"
@@ -45663,11 +45035,11 @@ void PASTEMAC(ch,varname) \
        cntx_t* cntx  \
      );
 
-INSERT_GENTPROT_BASIC0( trmv_unb_var1 )
-INSERT_GENTPROT_BASIC0( trmv_unb_var2 )
+INSERT_GENTPROT_BASIC( trmv_unb_var1 )
+INSERT_GENTPROT_BASIC( trmv_unb_var2 )
 
-INSERT_GENTPROT_BASIC0( trmv_unf_var1 )
-INSERT_GENTPROT_BASIC0( trmv_unf_var2 )
+INSERT_GENTPROT_BASIC( trmv_unf_var1 )
+INSERT_GENTPROT_BASIC( trmv_unf_var2 )
 
 // end bli_trmv_var.h
 #line 41 "./frame/2/trmv//bli_trmv.h"
@@ -45803,11 +45175,11 @@ void PASTEMAC(ch,varname) \
        cntx_t* cntx  \
      );
 
-INSERT_GENTPROT_BASIC0( trsv_unb_var1 )
-INSERT_GENTPROT_BASIC0( trsv_unb_var2 )
+INSERT_GENTPROT_BASIC( trsv_unb_var1 )
+INSERT_GENTPROT_BASIC( trsv_unb_var2 )
 
-INSERT_GENTPROT_BASIC0( trsv_unf_var1 )
-INSERT_GENTPROT_BASIC0( trsv_unf_var2 )
+INSERT_GENTPROT_BASIC( trsv_unf_var1 )
+INSERT_GENTPROT_BASIC( trsv_unf_var2 )
 
 // end bli_trsv_var.h
 #line 41 "./frame/2/trsv//bli_trsv.h"
@@ -47304,7 +46676,7 @@ BLIS_EXPORT_BLIS void PASTEMAC(ch,opname) \
              ctype*  c, inc_t rs_c, inc_t cs_c  \
      );
 
-INSERT_GENTPROT_BASIC0( gemm )
+INSERT_GENTPROT_BASIC( gemm )
 
 #undef  GENTPROT
 #define GENTPROT( ctype, ch, opname ) \
@@ -47324,8 +46696,8 @@ BLIS_EXPORT_BLIS void PASTEMAC(ch,opname) \
              ctype*  c, inc_t rs_c, inc_t cs_c  \
      );
 
-INSERT_GENTPROT_BASIC0( hemm )
-INSERT_GENTPROT_BASIC0( symm )
+INSERT_GENTPROT_BASIC( hemm )
+INSERT_GENTPROT_BASIC( symm )
 
 
 #undef  GENTPROTR
@@ -47343,7 +46715,7 @@ BLIS_EXPORT_BLIS void PASTEMAC(ch,opname) \
              ctype*   c, inc_t rs_c, inc_t cs_c  \
      );
 
-INSERT_GENTPROTR_BASIC0( herk )
+INSERT_GENTPROTR_BASIC( herk )
 
 
 #undef  GENTPROTR
@@ -47363,7 +46735,7 @@ BLIS_EXPORT_BLIS void PASTEMAC(ch,opname) \
              ctype*   c, inc_t rs_c, inc_t cs_c  \
      );
 
-INSERT_GENTPROTR_BASIC0( her2k )
+INSERT_GENTPROTR_BASIC( her2k )
 
 
 #undef  GENTPROT
@@ -47381,7 +46753,7 @@ BLIS_EXPORT_BLIS void PASTEMAC(ch,opname) \
              ctype*  c, inc_t rs_c, inc_t cs_c  \
      );
 
-INSERT_GENTPROT_BASIC0( syrk )
+INSERT_GENTPROT_BASIC( syrk )
 
 
 #undef  GENTPROT
@@ -47401,8 +46773,8 @@ BLIS_EXPORT_BLIS void PASTEMAC(ch,opname) \
              ctype*  c, inc_t rs_c, inc_t cs_c  \
      );
 
-INSERT_GENTPROT_BASIC0( gemmt )
-INSERT_GENTPROT_BASIC0( syr2k )
+INSERT_GENTPROT_BASIC( gemmt )
+INSERT_GENTPROT_BASIC( syr2k )
 
 
 #undef  GENTPROT
@@ -47424,7 +46796,7 @@ BLIS_EXPORT_BLIS void PASTEMAC(ch,opname) \
              ctype*  c, inc_t rs_c, inc_t cs_c  \
      );
 
-INSERT_GENTPROT_BASIC0( trmm3 )
+INSERT_GENTPROT_BASIC( trmm3 )
 
 
 #undef  GENTPROT
@@ -47443,8 +46815,8 @@ BLIS_EXPORT_BLIS void PASTEMAC(ch,opname) \
              ctype*  b, inc_t rs_b, inc_t cs_b  \
      );
 
-INSERT_GENTPROT_BASIC0( trmm )
-INSERT_GENTPROT_BASIC0( trsm )
+INSERT_GENTPROT_BASIC( trmm )
+INSERT_GENTPROT_BASIC( trsm )
 
 // end bli_l3_tapi.h
 #line 61 "./frame/3//bli_l3.h"
@@ -47511,7 +46883,7 @@ BLIS_EXPORT_BLIS void PASTEMAC2(ch,opname,BLIS_TAPI_EX_SUF) \
        const rntm_t* rntm  \
      );
 
-INSERT_GENTPROT_BASIC0( gemm )
+INSERT_GENTPROT_BASIC( gemm )
 
 #undef  GENTPROT
 #define GENTPROT( ctype, ch, opname ) \
@@ -47533,8 +46905,8 @@ BLIS_EXPORT_BLIS void PASTEMAC2(ch,opname,BLIS_TAPI_EX_SUF) \
        const rntm_t* rntm  \
      );
 
-INSERT_GENTPROT_BASIC0( hemm )
-INSERT_GENTPROT_BASIC0( symm )
+INSERT_GENTPROT_BASIC( hemm )
+INSERT_GENTPROT_BASIC( symm )
 
 
 #undef  GENTPROTR
@@ -47554,7 +46926,7 @@ BLIS_EXPORT_BLIS void PASTEMAC2(ch,opname,BLIS_TAPI_EX_SUF) \
        const rntm_t*  rntm  \
      );
 
-INSERT_GENTPROTR_BASIC0( herk )
+INSERT_GENTPROTR_BASIC( herk )
 
 
 #undef  GENTPROTR
@@ -47576,7 +46948,7 @@ BLIS_EXPORT_BLIS void PASTEMAC2(ch,opname,BLIS_TAPI_EX_SUF) \
        const rntm_t*  rntm  \
      );
 
-INSERT_GENTPROTR_BASIC0( her2k )
+INSERT_GENTPROTR_BASIC( her2k )
 
 
 #undef  GENTPROT
@@ -47596,7 +46968,7 @@ BLIS_EXPORT_BLIS void PASTEMAC2(ch,opname,BLIS_TAPI_EX_SUF) \
        const rntm_t* rntm  \
      );
 
-INSERT_GENTPROT_BASIC0( syrk )
+INSERT_GENTPROT_BASIC( syrk )
 
 
 #undef  GENTPROT
@@ -47618,8 +46990,8 @@ BLIS_EXPORT_BLIS void PASTEMAC2(ch,opname,BLIS_TAPI_EX_SUF) \
        const rntm_t* rntm  \
      );
 
-INSERT_GENTPROT_BASIC0( gemmt )
-INSERT_GENTPROT_BASIC0( syr2k )
+INSERT_GENTPROT_BASIC( gemmt )
+INSERT_GENTPROT_BASIC( syr2k )
 
 
 #undef  GENTPROT
@@ -47643,7 +47015,7 @@ BLIS_EXPORT_BLIS void PASTEMAC2(ch,opname,BLIS_TAPI_EX_SUF) \
        const rntm_t* rntm  \
      );
 
-INSERT_GENTPROT_BASIC0( trmm3 )
+INSERT_GENTPROT_BASIC( trmm3 )
 
 
 #undef  GENTPROT
@@ -47664,8 +47036,8 @@ BLIS_EXPORT_BLIS void PASTEMAC2(ch,opname,BLIS_TAPI_EX_SUF) \
        const rntm_t* rntm  \
      );
 
-INSERT_GENTPROT_BASIC0( trmm )
-INSERT_GENTPROT_BASIC0( trsm )
+INSERT_GENTPROT_BASIC( trmm )
+INSERT_GENTPROT_BASIC( trsm )
 
 // end bli_l3_tapi_ex.h
 #line 62 "./frame/3//bli_l3.h"
@@ -48088,8 +47460,8 @@ void PASTEMAC(ch,varname) \
        thrinfo_t* thread  \
      );
 
-INSERT_GENTPROT_BASIC0( gemmsup_ref_var1 )
-INSERT_GENTPROT_BASIC0( gemmsup_ref_var2 )
+INSERT_GENTPROT_BASIC( gemmsup_ref_var1 )
+INSERT_GENTPROT_BASIC( gemmsup_ref_var2 )
 
 // -----------------------------------------------------------------------------
 
@@ -48339,7 +47711,7 @@ void PASTEMAC(ch,varname) \
        thrinfo_t* thread  \
      );
 
-INSERT_GENTPROT_BASIC0( packm_sup_var1 )
+INSERT_GENTPROT_BASIC( packm_sup_var1 )
 
 #undef  GENTPROT
 #define GENTPROT( ctype, ch, varname ) \
@@ -48357,7 +47729,7 @@ void PASTEMAC(ch,varname) \
        thrinfo_t* thread  \
      );
 
-INSERT_GENTPROT_BASIC0( packm_sup_var2 )
+INSERT_GENTPROT_BASIC( packm_sup_var2 )
 
 // end bli_l3_sup_packm_var.h
 #line 79 "./frame/3//bli_l3.h"
@@ -48514,7 +47886,7 @@ void PASTEMAC(ch,opname) \
        const cntx_t*    cntx  \
      );
 
-INSERT_GENTPROT_BASIC0( gemm_ukernel )
+INSERT_GENTPROT_BASIC( gemm_ukernel )
 
 
 #undef  GENTPROT
@@ -48535,8 +47907,8 @@ void PASTEMAC(ch,opname) \
        const cntx_t*    cntx  \
      );
 
-INSERT_GENTPROT_BASIC0( gemmtrsm_l_ukernel )
-INSERT_GENTPROT_BASIC0( gemmtrsm_u_ukernel )
+INSERT_GENTPROT_BASIC( gemmtrsm_l_ukernel )
+INSERT_GENTPROT_BASIC( gemmtrsm_u_ukernel )
 
 
 #undef  GENTPROT
@@ -48551,8 +47923,8 @@ void PASTEMAC(ch,opname) \
        const cntx_t*    cntx  \
      );
 
-INSERT_GENTPROT_BASIC0( trsm_l_ukernel )
-INSERT_GENTPROT_BASIC0( trsm_u_ukernel )
+INSERT_GENTPROT_BASIC( trsm_l_ukernel )
+INSERT_GENTPROT_BASIC( trsm_u_ukernel )
 
 // end bli_l3_ukr_tapi.h
 #line 83 "./frame/3//bli_l3.h"
@@ -51261,7 +50633,7 @@ BLIS_EXPORT_BLIS void PASTEMAC2(ch,opname,EX_SUF) \
        BLIS_TAPI_EX_PARAMS  \
      );
 
-INSERT_GENTPROTR_BASIC0( asumv )
+INSERT_GENTPROTR_BASIC( asumv )
 
 
 #undef  GENTPROT
@@ -51275,9 +50647,9 @@ BLIS_EXPORT_BLIS void PASTEMAC2(ch,opname,EX_SUF) \
        BLIS_TAPI_EX_PARAMS  \
      );
 
-INSERT_GENTPROT_BASIC0( mkherm )
-INSERT_GENTPROT_BASIC0( mksymm )
-INSERT_GENTPROT_BASIC0( mktrim )
+INSERT_GENTPROT_BASIC( mkherm )
+INSERT_GENTPROT_BASIC( mksymm )
+INSERT_GENTPROT_BASIC( mktrim )
 
 
 #undef  GENTPROTR
@@ -51291,9 +50663,9 @@ BLIS_EXPORT_BLIS void PASTEMAC2(ch,opname,EX_SUF) \
        BLIS_TAPI_EX_PARAMS  \
      );
 
-INSERT_GENTPROTR_BASIC0( norm1v )
-INSERT_GENTPROTR_BASIC0( normfv )
-INSERT_GENTPROTR_BASIC0( normiv )
+INSERT_GENTPROTR_BASIC( norm1v )
+INSERT_GENTPROTR_BASIC( normfv )
+INSERT_GENTPROTR_BASIC( normiv )
 
 
 #undef  GENTPROTR
@@ -51311,9 +50683,9 @@ BLIS_EXPORT_BLIS void PASTEMAC2(ch,opname,EX_SUF) \
        BLIS_TAPI_EX_PARAMS  \
      );
 
-INSERT_GENTPROTR_BASIC0( norm1m )
-INSERT_GENTPROTR_BASIC0( normfm )
-INSERT_GENTPROTR_BASIC0( normim )
+INSERT_GENTPROTR_BASIC( norm1m )
+INSERT_GENTPROTR_BASIC( normfm )
+INSERT_GENTPROTR_BASIC( normim )
 
 
 #undef  GENTPROT
@@ -51326,8 +50698,8 @@ BLIS_EXPORT_BLIS void PASTEMAC2(ch,opname,EX_SUF) \
        BLIS_TAPI_EX_PARAMS  \
      );
 
-INSERT_GENTPROT_BASIC0( randv )
-INSERT_GENTPROT_BASIC0( randnv )
+INSERT_GENTPROT_BASIC( randv )
+INSERT_GENTPROT_BASIC( randnv )
 
 
 #undef  GENTPROT
@@ -51343,8 +50715,8 @@ BLIS_EXPORT_BLIS void PASTEMAC2(ch,opname,EX_SUF) \
        BLIS_TAPI_EX_PARAMS  \
      );
 
-INSERT_GENTPROT_BASIC0( randm )
-INSERT_GENTPROT_BASIC0( randnm )
+INSERT_GENTPROT_BASIC( randm )
+INSERT_GENTPROT_BASIC( randnm )
 
 
 #undef  GENTPROTR
@@ -51359,7 +50731,7 @@ BLIS_EXPORT_BLIS void PASTEMAC2(ch,opname,EX_SUF) \
        BLIS_TAPI_EX_PARAMS  \
      );
 
-INSERT_GENTPROTR_BASIC0( sumsqv )
+INSERT_GENTPROTR_BASIC( sumsqv )
 
 // -----------------------------------------------------------------------------
 
@@ -51378,7 +50750,7 @@ BLIS_EXPORT_BLIS void PASTEMAC(ch,opname) \
              bool*  is_eq  \
      );
 
-INSERT_GENTPROT_BASIC0( eqsc )
+INSERT_GENTPROT_BASIC( eqsc )
 
 
 #undef  GENTPROT
@@ -51393,7 +50765,7 @@ BLIS_EXPORT_BLIS void PASTEMAC(ch,opname) \
               bool*  is_eq  \
       );
 
-INSERT_GENTPROT_BASIC0( eqv )
+INSERT_GENTPROT_BASIC( eqv )
 
 
 #undef  GENTPROT
@@ -51412,7 +50784,7 @@ BLIS_EXPORT_BLIS void PASTEMAC(ch,opname) \
              bool*   is_eq  \
      );
 
-INSERT_GENTPROT_BASIC0( eqm )
+INSERT_GENTPROT_BASIC( eqm )
 
 
 #undef  GENTPROT
@@ -51425,10 +50797,10 @@ BLIS_EXPORT_BLIS void PASTEMAC(ch,opname) \
              bool*  is  \
      );
 
-INSERT_GENTPROT_BASIC0( ltsc )
-INSERT_GENTPROT_BASIC0( ltesc )
-INSERT_GENTPROT_BASIC0( gtsc )
-INSERT_GENTPROT_BASIC0( gtesc )
+INSERT_GENTPROT_BASIC( ltsc )
+INSERT_GENTPROT_BASIC( ltesc )
+INSERT_GENTPROT_BASIC( gtsc )
+INSERT_GENTPROT_BASIC( gtesc )
 
 
 #undef  GENTPROT
@@ -51443,7 +50815,7 @@ BLIS_EXPORT_BLIS void PASTEMAC(ch,opname) \
        const char* s2  \
      );
 
-INSERT_GENTPROT_BASIC0_I( printv )
+INSERT_GENTPROT_BASIC_I( printv )
 
 
 #undef  GENTPROT
@@ -51459,7 +50831,7 @@ BLIS_EXPORT_BLIS void PASTEMAC(ch,opname) \
        const char* s2  \
      );
 
-INSERT_GENTPROT_BASIC0_I( printm )
+INSERT_GENTPROT_BASIC_I( printm )
 
 #endif // #ifdef BLIS_TAPI_BASIC
 
@@ -51923,7 +51295,7 @@ BLIS_EXPORT_BLIS void PASTEMAC2(ch,opname,EX_SUF) \
        BLIS_TAPI_EX_PARAMS  \
      );
 
-INSERT_GENTPROTR_BASIC0( asumv )
+INSERT_GENTPROTR_BASIC( asumv )
 
 
 #undef  GENTPROT
@@ -51937,9 +51309,9 @@ BLIS_EXPORT_BLIS void PASTEMAC2(ch,opname,EX_SUF) \
        BLIS_TAPI_EX_PARAMS  \
      );
 
-INSERT_GENTPROT_BASIC0( mkherm )
-INSERT_GENTPROT_BASIC0( mksymm )
-INSERT_GENTPROT_BASIC0( mktrim )
+INSERT_GENTPROT_BASIC( mkherm )
+INSERT_GENTPROT_BASIC( mksymm )
+INSERT_GENTPROT_BASIC( mktrim )
 
 
 #undef  GENTPROTR
@@ -51953,9 +51325,9 @@ BLIS_EXPORT_BLIS void PASTEMAC2(ch,opname,EX_SUF) \
        BLIS_TAPI_EX_PARAMS  \
      );
 
-INSERT_GENTPROTR_BASIC0( norm1v )
-INSERT_GENTPROTR_BASIC0( normfv )
-INSERT_GENTPROTR_BASIC0( normiv )
+INSERT_GENTPROTR_BASIC( norm1v )
+INSERT_GENTPROTR_BASIC( normfv )
+INSERT_GENTPROTR_BASIC( normiv )
 
 
 #undef  GENTPROTR
@@ -51973,9 +51345,9 @@ BLIS_EXPORT_BLIS void PASTEMAC2(ch,opname,EX_SUF) \
        BLIS_TAPI_EX_PARAMS  \
      );
 
-INSERT_GENTPROTR_BASIC0( norm1m )
-INSERT_GENTPROTR_BASIC0( normfm )
-INSERT_GENTPROTR_BASIC0( normim )
+INSERT_GENTPROTR_BASIC( norm1m )
+INSERT_GENTPROTR_BASIC( normfm )
+INSERT_GENTPROTR_BASIC( normim )
 
 
 #undef  GENTPROT
@@ -51988,8 +51360,8 @@ BLIS_EXPORT_BLIS void PASTEMAC2(ch,opname,EX_SUF) \
        BLIS_TAPI_EX_PARAMS  \
      );
 
-INSERT_GENTPROT_BASIC0( randv )
-INSERT_GENTPROT_BASIC0( randnv )
+INSERT_GENTPROT_BASIC( randv )
+INSERT_GENTPROT_BASIC( randnv )
 
 
 #undef  GENTPROT
@@ -52005,8 +51377,8 @@ BLIS_EXPORT_BLIS void PASTEMAC2(ch,opname,EX_SUF) \
        BLIS_TAPI_EX_PARAMS  \
      );
 
-INSERT_GENTPROT_BASIC0( randm )
-INSERT_GENTPROT_BASIC0( randnm )
+INSERT_GENTPROT_BASIC( randm )
+INSERT_GENTPROT_BASIC( randnm )
 
 
 #undef  GENTPROTR
@@ -52021,7 +51393,7 @@ BLIS_EXPORT_BLIS void PASTEMAC2(ch,opname,EX_SUF) \
        BLIS_TAPI_EX_PARAMS  \
      );
 
-INSERT_GENTPROTR_BASIC0( sumsqv )
+INSERT_GENTPROTR_BASIC( sumsqv )
 
 // -----------------------------------------------------------------------------
 
@@ -52040,7 +51412,7 @@ BLIS_EXPORT_BLIS void PASTEMAC(ch,opname) \
              bool*  is_eq  \
      );
 
-INSERT_GENTPROT_BASIC0( eqsc )
+INSERT_GENTPROT_BASIC( eqsc )
 
 
 #undef  GENTPROT
@@ -52055,7 +51427,7 @@ BLIS_EXPORT_BLIS void PASTEMAC(ch,opname) \
               bool*  is_eq  \
       );
 
-INSERT_GENTPROT_BASIC0( eqv )
+INSERT_GENTPROT_BASIC( eqv )
 
 
 #undef  GENTPROT
@@ -52074,7 +51446,7 @@ BLIS_EXPORT_BLIS void PASTEMAC(ch,opname) \
              bool*   is_eq  \
      );
 
-INSERT_GENTPROT_BASIC0( eqm )
+INSERT_GENTPROT_BASIC( eqm )
 
 
 #undef  GENTPROT
@@ -52087,10 +51459,10 @@ BLIS_EXPORT_BLIS void PASTEMAC(ch,opname) \
              bool*  is  \
      );
 
-INSERT_GENTPROT_BASIC0( ltsc )
-INSERT_GENTPROT_BASIC0( ltesc )
-INSERT_GENTPROT_BASIC0( gtsc )
-INSERT_GENTPROT_BASIC0( gtesc )
+INSERT_GENTPROT_BASIC( ltsc )
+INSERT_GENTPROT_BASIC( ltesc )
+INSERT_GENTPROT_BASIC( gtsc )
+INSERT_GENTPROT_BASIC( gtesc )
 
 
 #undef  GENTPROT
@@ -52105,7 +51477,7 @@ BLIS_EXPORT_BLIS void PASTEMAC(ch,opname) \
        const char* s2  \
      );
 
-INSERT_GENTPROT_BASIC0_I( printv )
+INSERT_GENTPROT_BASIC_I( printv )
 
 
 #undef  GENTPROT
@@ -52121,7 +51493,7 @@ BLIS_EXPORT_BLIS void PASTEMAC(ch,opname) \
        const char* s2  \
      );
 
-INSERT_GENTPROT_BASIC0_I( printm )
+INSERT_GENTPROT_BASIC_I( printm )
 
 #endif // #ifdef BLIS_TAPI_BASIC
 
@@ -52609,7 +51981,7 @@ void PASTEMAC(ch,varname) \
        rntm_t*  rntm  \
      );
 
-INSERT_GENTPROTR_BASIC0( asumv_unb_var1 )
+INSERT_GENTPROTR_BASIC( asumv_unb_var1 )
 
 
 #undef  GENTPROT
@@ -52624,9 +51996,9 @@ void PASTEMAC(ch,varname) \
        rntm_t* rntm  \
      );
 
-INSERT_GENTPROT_BASIC0( mkherm_unb_var1 )
-INSERT_GENTPROT_BASIC0( mksymm_unb_var1 )
-INSERT_GENTPROT_BASIC0( mktrim_unb_var1 )
+INSERT_GENTPROT_BASIC( mkherm_unb_var1 )
+INSERT_GENTPROT_BASIC( mksymm_unb_var1 )
+INSERT_GENTPROT_BASIC( mktrim_unb_var1 )
 
 
 #undef  GENTPROTR
@@ -52641,9 +52013,9 @@ void PASTEMAC(ch,varname) \
        rntm_t*  rntm  \
      );
 
-INSERT_GENTPROTR_BASIC0( norm1v_unb_var1 )
-INSERT_GENTPROTR_BASIC0( normfv_unb_var1 )
-INSERT_GENTPROTR_BASIC0( normiv_unb_var1 )
+INSERT_GENTPROTR_BASIC( norm1v_unb_var1 )
+INSERT_GENTPROTR_BASIC( normfv_unb_var1 )
+INSERT_GENTPROTR_BASIC( normiv_unb_var1 )
 
 
 #undef  GENTPROTR
@@ -52662,9 +52034,9 @@ void PASTEMAC(ch,varname) \
        rntm_t*  rntm  \
      );
 
-INSERT_GENTPROTR_BASIC0( norm1m_unb_var1 )
-INSERT_GENTPROTR_BASIC0( normfm_unb_var1 )
-INSERT_GENTPROTR_BASIC0( normim_unb_var1 )
+INSERT_GENTPROTR_BASIC( norm1m_unb_var1 )
+INSERT_GENTPROTR_BASIC( normfm_unb_var1 )
+INSERT_GENTPROTR_BASIC( normim_unb_var1 )
 
 
 #undef  GENTPROT
@@ -52678,8 +52050,8 @@ void PASTEMAC(ch,varname) \
        rntm_t* rntm  \
      );
 
-INSERT_GENTPROT_BASIC0( randv_unb_var1 )
-INSERT_GENTPROT_BASIC0( randnv_unb_var1 )
+INSERT_GENTPROT_BASIC( randv_unb_var1 )
+INSERT_GENTPROT_BASIC( randnv_unb_var1 )
 
 
 #undef  GENTPROT
@@ -52696,8 +52068,8 @@ void PASTEMAC(ch,varname) \
        rntm_t* rntm  \
      );
 
-INSERT_GENTPROT_BASIC0( randm_unb_var1 )
-INSERT_GENTPROT_BASIC0( randnm_unb_var1 )
+INSERT_GENTPROT_BASIC( randm_unb_var1 )
+INSERT_GENTPROT_BASIC( randnm_unb_var1 )
 
 
 #undef  GENTPROTR
@@ -52713,7 +52085,7 @@ void PASTEMAC(ch,varname) \
        rntm_t*  rntm  \
      );
 
-INSERT_GENTPROTR_BASIC0( sumsqv_unb_var1 )
+INSERT_GENTPROTR_BASIC( sumsqv_unb_var1 )
 
 // -----------------------------------------------------------------------------
 
@@ -52728,7 +52100,7 @@ bool PASTEMAC(ch,varname) \
        ctype* y, inc_t incy  \
      );
 
-INSERT_GENTPROT_BASIC0( eqv_unb_var1 )
+INSERT_GENTPROT_BASIC( eqv_unb_var1 )
 
 
 #undef  GENTPROT
@@ -52746,7 +52118,7 @@ bool PASTEMAC(ch,varname) \
        ctype*  y, inc_t rs_y, inc_t cs_y  \
      );
 
-INSERT_GENTPROT_BASIC0( eqm_unb_var1 )
+INSERT_GENTPROT_BASIC( eqm_unb_var1 )
 
 
 #undef  GENTPROT
@@ -52762,7 +52134,7 @@ BLIS_EXPORT_BLIS void PASTEMAC(ch,opname) \
        const char*  s2  \
      );
 
-INSERT_GENTPROT_BASIC0_I( fprintv )
+INSERT_GENTPROT_BASIC_I( fprintv )
 
 
 #undef  GENTPROT
@@ -52779,7 +52151,7 @@ BLIS_EXPORT_BLIS void PASTEMAC(ch,opname) \
        const char*  s2  \
      );
 
-INSERT_GENTPROT_BASIC0_I( fprintm )
+INSERT_GENTPROT_BASIC_I( fprintm )
 
 
 // end bli_util_unb_var1.h
@@ -54280,6 +53652,8 @@ BLIS_EXPORT_BLAS int PASTEF77(s,rot)(const bla_integer *n, bla_real *sx, const b
 BLIS_EXPORT_BLAS int PASTEF77(d,rot)(const bla_integer *n, bla_double *dx, const bla_integer *incx, bla_double *dy, const bla_integer *incy, const bla_double *c__, const bla_double *s);
 BLIS_EXPORT_BLAS int PASTEF77(cs,rot)(const bla_integer *n, bla_scomplex *cx, const bla_integer *incx, bla_scomplex *cy, const bla_integer *incy, const bla_real *c__, const bla_real *s);
 BLIS_EXPORT_BLAS int PASTEF77(zd,rot)(const bla_integer *n, bla_dcomplex *zx, const bla_integer *incx, bla_dcomplex *zy, const bla_integer *incy, const bla_double *c__, const bla_double *s);
+BLIS_EXPORT_BLAS int PASTEF77(c,rot)(const bla_integer *n, bla_scomplex *cx, const bla_integer *incx, bla_scomplex *cy, const bla_integer *incy, const bla_real *c__, const bla_scomplex *s);
+BLIS_EXPORT_BLAS int PASTEF77(z,rot)(const bla_integer *n, bla_dcomplex *cx, const bla_integer *incx, bla_dcomplex *cy, const bla_integer *incy, const bla_double *c__, const bla_dcomplex *s);
 
 #endif
 // end bla_rot.h
@@ -55167,8 +54541,8 @@ INSERT_GENTPROTCO_BLAS( her2 )
 //
 // Prototype BLAS-to-BLIS interfaces.
 //
-#undef  GENTPROTRO
-#define GENTPROTRO( ftype, ch, blasname ) \
+#undef  GENTPROT
+#define GENTPROT( ftype, ch, blasname ) \
 \
 BLIS_EXPORT_BLAS void PASTEF77(ch,blasname) \
      ( \
@@ -55182,7 +54556,7 @@ BLIS_EXPORT_BLAS void PASTEF77(ch,blasname) \
      );
 
 #ifdef BLIS_ENABLE_BLAS
-INSERT_GENTPROTRO_BLAS( symv )
+INSERT_GENTPROT_BLAS( symv )
 #endif
 
 #endif
@@ -55232,8 +54606,8 @@ INSERT_GENTPROTRO_BLAS( symv )
 //
 // Prototype BLAS-to-BLIS interfaces.
 //
-#undef  GENTPROTRO
-#define GENTPROTRO( ftype, ch, blasname ) \
+#undef  GENTPROT
+#define GENTPROT( ftype, ch, blasname ) \
 \
 BLIS_EXPORT_BLAS void PASTEF77(ch,blasname) \
      ( \
@@ -55245,7 +54619,7 @@ BLIS_EXPORT_BLAS void PASTEF77(ch,blasname) \
      );
 
 #ifdef BLIS_ENABLE_BLAS
-INSERT_GENTPROTRO_BLAS( syr )
+INSERT_GENTPROT_BLAS( syr )
 #endif
 
 #endif
@@ -59867,6 +59241,8 @@ BLIS_EXPORT_BLAS int PASTEF77(s,rot)(const bla_integer *n, bla_real *sx, const b
 BLIS_EXPORT_BLAS int PASTEF77(d,rot)(const bla_integer *n, bla_double *dx, const bla_integer *incx, bla_double *dy, const bla_integer *incy, const bla_double *c__, const bla_double *s);
 BLIS_EXPORT_BLAS int PASTEF77(cs,rot)(const bla_integer *n, bla_scomplex *cx, const bla_integer *incx, bla_scomplex *cy, const bla_integer *incy, const bla_real *c__, const bla_real *s);
 BLIS_EXPORT_BLAS int PASTEF77(zd,rot)(const bla_integer *n, bla_dcomplex *zx, const bla_integer *incx, bla_dcomplex *zy, const bla_integer *incy, const bla_double *c__, const bla_double *s);
+BLIS_EXPORT_BLAS int PASTEF77(c,rot)(const bla_integer *n, bla_scomplex *cx, const bla_integer *incx, bla_scomplex *cy, const bla_integer *incy, const bla_real *c__, const bla_scomplex *s);
+BLIS_EXPORT_BLAS int PASTEF77(z,rot)(const bla_integer *n, bla_dcomplex *cx, const bla_integer *incx, bla_dcomplex *cy, const bla_integer *incy, const bla_double *c__, const bla_dcomplex *s);
 
 #endif
 // end bla_rot.h
@@ -60754,8 +60130,8 @@ INSERT_GENTPROTCO_BLAS( her2 )
 //
 // Prototype BLAS-to-BLIS interfaces.
 //
-#undef  GENTPROTRO
-#define GENTPROTRO( ftype, ch, blasname ) \
+#undef  GENTPROT
+#define GENTPROT( ftype, ch, blasname ) \
 \
 BLIS_EXPORT_BLAS void PASTEF77(ch,blasname) \
      ( \
@@ -60769,7 +60145,7 @@ BLIS_EXPORT_BLAS void PASTEF77(ch,blasname) \
      );
 
 #ifdef BLIS_ENABLE_BLAS
-INSERT_GENTPROTRO_BLAS( symv )
+INSERT_GENTPROT_BLAS( symv )
 #endif
 
 #endif
@@ -60819,8 +60195,8 @@ INSERT_GENTPROTRO_BLAS( symv )
 //
 // Prototype BLAS-to-BLIS interfaces.
 //
-#undef  GENTPROTRO
-#define GENTPROTRO( ftype, ch, blasname ) \
+#undef  GENTPROT
+#define GENTPROT( ftype, ch, blasname ) \
 \
 BLIS_EXPORT_BLAS void PASTEF77(ch,blasname) \
      ( \
@@ -60832,7 +60208,7 @@ BLIS_EXPORT_BLAS void PASTEF77(ch,blasname) \
      );
 
 #ifdef BLIS_ENABLE_BLAS
-INSERT_GENTPROTRO_BLAS( syr )
+INSERT_GENTPROT_BLAS( syr )
 #endif
 
 #endif
@@ -64429,6 +63805,12 @@ BLIS_EXPORT_BLAS void PASTEF770(bli_thread_set_num_threads)
 #define BLIS_DISABLE_SYSTEM
 #endif
 
+#if 1
+#define BLIS_ENABLE_TLS
+#else
+#define BLIS_DISABLE_TLS
+#endif
+
 #if 0
 #define BLIS_ENABLE_OPENMP
 #if 0
@@ -64662,6 +64044,14 @@ BLIS_EXPORT_BLAS void PASTEF770(bli_thread_set_num_threads)
   // No additional definitions needed.
 #else
   // Default behavior is disabled.
+#endif
+
+
+// -- MEMORY SUBSYSTEM PROPERTIES ----------------------------------------------
+
+// Size of a cache line (in bytes).
+#ifndef BLIS_CACHE_LINE_SIZE
+#define BLIS_CACHE_LINE_SIZE 64
 #endif
 
 
@@ -65020,14 +64410,51 @@ typedef uint32_t objbits_t;  // object information bit field
 
 // -- Complex types --
 
-#ifdef BLIS_ENABLE_C99_COMPLEX
+#if defined(__cplusplus) && defined(BLIS_ENABLE_STD_COMPLEX)
+
+	} //extern "C"
+
+#include <complex> // skipped
+
+	// Typedef official C++ complex types to BLIS complex type names.
+
+	// This cpp guard provides a temporary hack to allow libflame
+	// interoperability with BLIS.
+	#ifndef _DEFINED_SCOMPLEX
+	#define _DEFINED_SCOMPLEX
+	typedef std::complex<float> scomplex;
+	#endif
+
+	// This cpp guard provides a temporary hack to allow libflame
+	// interoperability with BLIS.
+	#ifndef _DEFINED_DCOMPLEX
+	#define _DEFINED_DCOMPLEX
+	typedef std::complex<double> dcomplex;
+	#endif
+
+	extern "C"
+	{
+
+#elif defined(BLIS_ENABLE_C99_COMPLEX)
 
 	#if __STDC_VERSION__ >= 199901L
 #include <complex.h> // skipped
 
-		// Typedef official complex types to BLIS complex type names.
-		typedef  float complex scomplex;
+		// Typedef official C99 complex types to BLIS complex type names.
+
+		// This cpp guard provides a temporary hack to allow libflame
+		// interoperability with BLIS.
+		#ifndef _DEFINED_SCOMPLEX
+		#define _DEFINED_SCOMPLEX
+		typedef float complex scomplex;
+		#endif
+
+		// This cpp guard provides a temporary hack to allow libflame
+		// interoperability with BLIS.
+		#ifndef _DEFINED_DCOMPLEX
+		#define _DEFINED_DCOMPLEX
 		typedef double complex dcomplex;
+		#endif
 	#else
 		#error "Configuration requested C99 complex types, but C99 does not appear to be supported."
 	#endif
@@ -65837,12 +65264,16 @@ typedef enum
 	BLIS_ARCH_A64FX,
 
 	// ARM-NEON (4 pipes x 128-bit vectors)
+	BLIS_ARCH_ALTRAMAX,
+	BLIS_ARCH_ALTRA,
 	BLIS_ARCH_FIRESTORM,
 
 	// ARM (2 pipes x 128-bit vectors)
 	BLIS_ARCH_THUNDERX2,
 	BLIS_ARCH_CORTEXA57,
 	BLIS_ARCH_CORTEXA53,
+
+	// ARM 32-bit (vintage)
 	BLIS_ARCH_CORTEXA15,
 	BLIS_ARCH_CORTEXA9,
 
@@ -65851,6 +65282,15 @@ typedef enum
 	BLIS_ARCH_POWER9,
 	BLIS_ARCH_POWER7,
 	BLIS_ARCH_BGQ,
+
+	// RISC-V
+	BLIS_ARCH_RV32I,
+	BLIS_ARCH_RV64I,
+	BLIS_ARCH_RV32IV,
+	BLIS_ARCH_RV64IV,
+
+	// SiFive
+	BLIS_ARCH_SIFIVE_X280,
 
 	// Generic architecture/configuration
 	BLIS_ARCH_GENERIC,
@@ -66171,7 +65611,7 @@ int bli_pthread_switch_off
 
 #endif // BLIS_PTHREAD_H
 // end bli_pthread.h
-#line 986 "./frame/include//bli_type_defs.h"
+#line 1036 "./frame/include//bli_type_defs.h"
 
 
 // -- Pool block type --

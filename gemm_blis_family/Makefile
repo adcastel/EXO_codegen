@@ -2,7 +2,7 @@ DTYPE = -DFP32
 MR = 8
 NR = 12
 
-BLIS_HOME    = ${BLISHOME}
+BLIS_HOME    = /home/adcastel/EXO/ukernels/EXO_codegen/opt/blis/
 INCLUDE_BLIS = -I$(BLIS_HOME)/include/blis/
 LIB_BLIS     = -lblis -L$(BLIS_HOME)/lib
 
