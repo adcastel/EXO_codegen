@@ -45,20 +45,32 @@ echo "[*] gnuplot OK"
 echo "###################################"
 echo "Building Exo. This may take a while..."
 echo "###################################"
-cd exo
-python3 -m pip install -U setuptools wheel pytest attr
-python3 -m pip install -r requirements.txt
-python3 -m build
-pip3 install dist/*.whl --force-reinstall
-cd ..
+if ! hash exocc; then
+    git clone --recursive https://github.com/adcastel/exo.git
+    cd exo
+    python3 -m pip install -U setuptools wheel pytest attr
+    python3 -m pip install -r requirements.txt
+    python3 -m build
+    pip3 install dist/*.whl --force-reinstall
+    cd ..
+else
+	echo "[*] exocc OK (from $(which exocc))"
+fi
 
 echo "###################################"
 echo "Building Blis"
 echo "###################################"
+
+if [ $1 == "" ]; then
+	target="auto"
+else
+	target=$1
+fi
+
 HERE=${PWD}
 mkdir -p opt
 cd blis
-./configure --prefix=${HERE}/opt/blis  CC=gcc CXX=g++ auto #cortexa57
+./configure --prefix=${HERE}/opt/blis  CC=gcc CXX=g++ ${target} #cortexa57
 make -j 6 && make install
 cd ..
 

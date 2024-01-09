@@ -12,9 +12,9 @@ echo "BLIS" >  output/blis.dat
 echo "EXO" >  output/exo.dat
 echo "#UK " > output/1st_col.dat 
 export LD_LIBRARY_PATH=/${BLISHOME}/lib/:$LD_LIBRARY_PATH
-for IMR in 8 
+for IMR in 4 8 
 do
-	for INR in 12 
+	for INR in 4 8 12 
 	do
         echo "${IMR}x${INR} " >> output/1st_col.dat 
           make clean
