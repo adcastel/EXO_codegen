@@ -12,19 +12,19 @@ echo "BLIS" >  output/blis.dat
 echo "EXO" >  output/exo.dat
 echo "#UK " > output/1st_col.dat 
 export LD_LIBRARY_PATH=/${BLISHOME}/lib/:$LD_LIBRARY_PATH
-for IMR in 4 8 
+for IMR in 8 
 do
-	for INR in 4 8 12 
+	for INR in 12 
 	do
         echo "${IMR}x${INR} " >> output/1st_col.dat 
           make clean
           make MMR=${IMR} NNR=${INR}
 	  echo "Starting with ${IMR}x${INR}"
-          ./test_uk_blis BLIS ${IMR} ${INR} 512 512 1 5 
+          ./test_uk_blis BLIS ${IMR} ${INR} 512 512 1 5 T 
 	  tail -1 output/BLIS_${IMR}_${INR}.dat >>  output/blis.dat
-          ./test_uk_blis NEON ${IMR} ${INR} 512 512 1 5 
+          ./test_uk_blis NEON ${IMR} ${INR} 512 512 1 5 T
 	  tail -1 output/NEON_${IMR}_${INR}.dat >>  output/neon.dat
-          ./test_uk_blis EXO ${IMR} ${INR} 512 512 1 5 
+          ./test_uk_blis EXO ${IMR} ${INR} 512 512 1 5 T
 	  tail -1 output/EXO_${IMR}_${INR}.dat >>  output/exo.dat
 	  echo "Ending with ${IMR}x${INR}"
         done
